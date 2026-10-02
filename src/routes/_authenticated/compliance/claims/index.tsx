@@ -1,0 +1,60 @@
+import { createFileRoute } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { DataTable, type Column } from '@/components/data-tables/data-table'
+import { PageHeader, QueryBody } from '@/components/states'
+import { formatNaira } from '@/lib/format'
+import { queryKeys } from '@/lib/query-keys.factory'
+import { api } from '@/queries/api'
+import { exceptionLabel, type ComplianceException } from '@/queries/compliance/interfaces/compliance.dto'
+
+export const Route = createFileRoute('/_authenticated/compliance/claims/')({
+  component: ClaimsPage,
+})
+
+function ClaimsPage() {
+  const exceptions = useQuery({
+    queryKey: queryKeys.compliance.exceptions,
+    queryFn: () =>
+      api<{ items: ComplianceException[] }>({
+        method: 'GET',
+        path: '/admin/compliance/exceptions',
+      }),
+  })
+  const columns: Column<ComplianceException>[] = [
+    {
+      id: 'name',
+      header: 'Student',
+      cell: ({ row }) => row.original.name,
+    },
+    {
+      id: 'reasons',
+      header: 'Claim',
+      cell: ({ row }) => row.original.reasons.map((reason) => exceptionLabel(reason)).join(', '),
+    },
+    { accessorKey: 'paymentStatus', header: 'Status' },
+    {
+      id: 'amount',
+      header: 'Amount',
+      cell: ({ row }) => <span className="font-mono">{formatNaira(row.original.amount)}</span>,
+    },
+    {
+      id: 'ref',
+      header: 'Reference',
+      cell: ({ row }) => <span className="font-mono text-xs">{row.original.reference}</span>,
+    },
+  ]
+  return (
+    <div>
+      <PageHeader
+        eyebrow="CLAIMS"
+        title="Claims"
+        description="Open reconciliation claims from the exceptions feed: unpaid verification, amount mismatch, missing email, and stale pending."
+      />
+      <QueryBody loading={exceptions.isLoading} error={exceptions.error}>
+        {exceptions.data ? (
+          <DataTable columns={columns} data={exceptions.data.items} empty="No claims yet" />
+        ) : null}
+      </QueryBody>
+    </div>
+  )
+}
