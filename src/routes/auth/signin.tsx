@@ -1,9 +1,12 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { queryKeys } from '@/lib/query-keys.factory'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/ui/password-input'
 import { getSessionUser, login } from '@/server/auth'
 
 export const Route = createFileRoute('/auth/signin')({
@@ -16,6 +19,7 @@ export const Route = createFileRoute('/auth/signin')({
 
 function SignInPage() {
   const router = useRouter()
+  const client = useQueryClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [pending, setPending] = useState(false)
@@ -31,6 +35,7 @@ function SignInPage() {
       setError(result.error.message)
       return
     }
+    client.removeQueries({ queryKey: queryKeys.session })
     toast.success('Signed in')
     await router.navigate({ to: '/compliance' })
   }
@@ -63,9 +68,8 @@ function SignInPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">Password</Label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
