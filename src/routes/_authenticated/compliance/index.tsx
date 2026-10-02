@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis } from 'recharts'
 import { PageHeader, QueryBody } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,9 @@ const chartConfig = {
 
 function OverviewPage() {
   const [range, setRange] = useState<RangeKey>('30d')
-  const query = rangeToQuery(range)
+  // Fix the window when the range changes. Computing it on every render gave
+  // each render a new query key, so the page refetched forever.
+  const query = useMemo(() => rangeToQuery(range), [range])
   const summary = useQuery({
     queryKey: queryKeys.compliance.summary(query.from, query.to),
     queryFn: () =>

@@ -1,4 +1,4 @@
-import { fail, type Result } from '@/services/api/api.error'
+import type { Result } from '@/services/api/api.error'
 import type { ApiRequest } from '@/services/api/api.instance'
 import { backendExecute } from '@/services/api/backend'
 import { getAppSession } from '@/server/session'
@@ -15,8 +15,11 @@ export async function currentSessionUser(): Promise<SessionUser | null> {
   return result.data as SessionUser
 }
 
+/**
+ * Sends one request to the backend with the session token. The backend checks
+ * the token and permissions itself, and backendExecute refreshes an expired
+ * token, so there is no separate /auth/me round trip per call.
+ */
 export async function executeApi(request: ApiRequest): Promise<Result<unknown>> {
-  const user = await currentSessionUser()
-  if (!user) return fail(401, 'Unauthorized', { path: request.path })
   return backendExecute(request)
 }
