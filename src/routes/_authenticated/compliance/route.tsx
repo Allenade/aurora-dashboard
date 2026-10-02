@@ -30,7 +30,7 @@ function ComplianceLayout() {
   return (
     <AbilityProvider user={user}>
       <div className="flex min-h-screen bg-background">
-        <aside className="hidden w-56 shrink-0 border-r border-border md:block">
+        <aside className="sticky top-0 hidden h-screen w-56 shrink-0 overflow-y-auto border-r border-border md:block">
           <ComplianceSidebar badges={badges} />
         </aside>
         <Sheet open={navOpen} onOpenChange={setNavOpen}>

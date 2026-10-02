@@ -218,13 +218,13 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
     },
     onError: (error) => toast.error(error instanceof ApiError ? error.message : 'Request failed'),
   })
-  const [reason, setReason] = useState('Seat change')
+  const [reason, setReason] = useState('')
   const refund = useMutation({
     mutationFn: () =>
       api({
         method: 'POST',
         path: '/admin/refunds',
-        body: { enrollmentId: id, reason },
+        body: { enrollmentId: id, reason: reason.trim() },
       }),
     onSuccess: () => toast.success('Refund requested'),
     onError: (error) => toast.error(error instanceof ApiError ? error.message : 'Refund failed'),
@@ -270,8 +270,18 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
               <Can action="create" subject="refund">
                 {row.paymentStatus === 'success' ? (
                   <div className="space-y-2 border-t border-border pt-3">
-                    <Input value={reason} onChange={(event) => setReason(event.target.value)} />
-                    <Button size="sm" variant="outline" onClick={() => refund.mutate()}>
+                    <Input
+                      aria-label="Refund reason"
+                      placeholder="Reason for the refund"
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!reason.trim() || refund.isPending}
+                      onClick={() => refund.mutate()}
+                    >
                       Request refund
                     </Button>
                   </div>

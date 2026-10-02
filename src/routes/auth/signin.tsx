@@ -1,6 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { queryKeys } from '@/lib/query-keys.factory'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,6 +19,7 @@ export const Route = createFileRoute('/auth/signin')({
 
 function SignInPage() {
   const router = useRouter()
+  const client = useQueryClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [pending, setPending] = useState(false)
@@ -32,6 +35,7 @@ function SignInPage() {
       setError(result.error.message)
       return
     }
+    client.removeQueries({ queryKey: queryKeys.session })
     toast.success('Signed in')
     await router.navigate({ to: '/compliance' })
   }

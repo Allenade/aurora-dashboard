@@ -70,3 +70,20 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
     </div>
   )
 }
+
+export function NotFound() {
+  return (
+    <main className="flex min-h-[60vh] items-center justify-center px-4">
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6">
+        <p className="font-display text-sm tracking-[0.18em]">AURORA</p>
+        <h1 className="mt-4 text-lg font-semibold">Page not found</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This address does not match a dashboard page.
+        </p>
+        <a href="/compliance" className="mt-4 inline-block text-sm text-primary">
+          Go to the overview
+        </a>
+      </div>
+    </main>
+  )
+}
