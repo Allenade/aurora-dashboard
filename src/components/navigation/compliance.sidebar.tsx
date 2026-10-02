@@ -13,8 +13,10 @@ import {
   UndoIcon,
   UserGroupIcon,
   LeftToRightListDashIcon,
+  Logout01Icon,
 } from '@hugeicons/core-free-icons'
 import { cn } from 'cn'
+import { useSignOut } from '@/queries/auth/session'
 
 export const NAV = [
   { to: '/compliance', label: 'Overview', icon: Home01Icon, exact: true, badgeKey: null },
@@ -41,6 +43,7 @@ export function ComplianceSidebar({
   onNavigate?: () => void
 }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const { signOut, pending } = useSignOut()
   return (
     <div className="flex h-full flex-col bg-black">
       <div className="px-4 py-4">
@@ -74,6 +77,20 @@ export function ComplianceSidebar({
           )
         })}
       </nav>
+      <div className="border-t border-border px-2 py-3">
+        <button
+          type="button"
+          onClick={() => {
+            onNavigate?.()
+            void signOut()
+          }}
+          disabled={pending}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-surface hover:text-primary disabled:opacity-60"
+        >
+          <HugeiconsIcon icon={Logout01Icon} className="size-4" />
+          <span className="flex-1">{pending ? 'Signing out' : 'Sign out'}</span>
+        </button>
+      </div>
     </div>
   )
 }

@@ -11,12 +11,13 @@ import {
 } from '@/components/ui/command'
 import { NAV } from '@/components/navigation/compliance.sidebar'
 import { useUiStore } from '@/lib/ui-store'
-import { logout } from '@/server/auth'
+import { useSignOut } from '@/queries/auth/session'
 
 export function CommandPalette() {
   const open = useUiStore((state) => state.commandOpen)
   const setOpen = useUiStore((state) => state.setCommandOpen)
   const navigate = useNavigate()
+  const { signOut } = useSignOut()
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -54,9 +55,7 @@ export function CommandPalette() {
               value="Sign out"
               onSelect={() => {
                 setOpen(false)
-                void logout().then(() => {
-                  window.location.href = '/auth/signin'
-                })
+                void signOut()
               }}
             >
               Sign out
