@@ -215,15 +215,15 @@ function Composer({ onDone, onCancel }: { onDone: (id: string) => void; onCancel
   const caret = useRef<Caret | null>(null)
   const [step, setStep] = useState<Step>('who')
   const [kind, setKind] = useState<EmailKind>('transactional')
-  const [name, setName] = useState('Payment reminder')
-  const [subject, setSubject] = useState('Your {{track}} payment')
+  const [name, setName] = useState('')
+  const [subject, setSubject] = useState('')
   const [audienceKind, setAudienceKind] = useState<EmailAudience['kind']>('filter')
   const [emails, setEmails] = useState('')
   const [pendingHours, setPendingHours] = useState('24')
   const [templateId, setTemplateId] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<EmailAttachment[]>([])
   const [attaching, setAttaching] = useState(false)
-  const [blocks, setBlocks] = useState<EmailBlock[]>(starterBlocks())
+  const [blocks, setBlocks] = useState<EmailBlock[]>(() => [emptyBlock('text')])
   const [testTo, setTestTo] = useState('')
   const [confirm, setConfirm] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -337,7 +337,7 @@ function Composer({ onDone, onCancel }: { onDone: (id: string) => void; onCancel
     setSubject(template.subject)
     setKind(template.kind)
     setTemplateId(template.id)
-    setBlocks(nextBlocks.length ? nextBlocks : starterBlocks())
+    setBlocks(nextBlocks.length ? nextBlocks : [emptyBlock('text')])
     toast.success(`Started from ${template.name}`)
   }
 
@@ -447,7 +447,7 @@ function Composer({ onDone, onCancel }: { onDone: (id: string) => void; onCancel
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-3">
               <div className="flex flex-wrap items-end justify-between gap-2">
-                <p className="text-sm text-muted-foreground">Start from the draft below, or use a saved template.</p>
+                <p className="text-sm text-muted-foreground">Write the email below, or start from a saved template.</p>
                 <DropdownMenu>
                   <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
                     Start from a template
@@ -998,18 +998,6 @@ function bindField(caret: RefObject<Caret | null>, apply: (next: string) => void
     onSelect: remember,
     onBlur: remember,
   }
-}
-
-function starterBlocks(): EmailBlock[] {
-  return [
-    { id: blockId(), type: 'heading', text: 'Hello {{firstName}}' },
-    {
-      id: blockId(),
-      type: 'text',
-      text: 'Your {{track}} payment of {{amount}} is still open. Reference {{reference}}.',
-    },
-    { id: blockId(), type: 'button', label: 'Pay now', href: '{{payLink}}' },
-  ]
 }
 
 function emptyBlock(type: EmailBlock['type']): EmailBlock {
