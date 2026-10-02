@@ -36,6 +36,10 @@ BACKEND_URL=http://localhost:3000 bun run openapi
 
 That writes `src/services/api/_generated/schema.ts` from `${BACKEND_URL}/docs/swagger/json`.
 
+## Deploy on Netlify
+
+`netlify.toml` sets the build command (`bun run build`) and publish directory (`dist/client`). The `@netlify/vite-plugin-tanstack-start` plugin writes the SSR server function to `.netlify/v1/functions`. Set `BACKEND_URL` and `SESSION_SECRET` in the Netlify environment variables; they are read at runtime by the server.
+
 ## Checks
 
 ```bash
