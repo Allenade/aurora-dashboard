@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  courseOptions,
   filterRegistrants,
   registrantExportColumns,
-  trackChoices,
   type RegistrantRow,
 } from '@/lib/registrant-filters'
 import { exportMatrix, toExcelXml, toPdfBytes } from '@/lib/table-export'
@@ -79,12 +79,19 @@ describe('filterRegistrants', () => {
     ).toEqual(['Tunde'])
   })
 
-  it('uses the course name when one is known', () => {
-    const choices = trackChoices(
-      [{ slug: 'core-robotics', name: 'Core Robotics' }],
-      [ada, grace],
-    )
-    expect(choices).toEqual([
+  it('returns nothing when the catalogue is empty', () => {
+    expect(courseOptions([])).toEqual([])
+  })
+
+  it('lists only courses from the catalogue', () => {
+    expect(
+      courseOptions([
+        { slug: 'core-robotics', name: 'Core Robotics' },
+        { slug: '  ', name: 'Blank' },
+        { slug: 'ai-lab', name: '   ' },
+        { slug: 'core-robotics', name: 'Duplicate' },
+      ]),
+    ).toEqual([
       ['ai-lab', 'ai-lab'],
       ['core-robotics', 'Core Robotics'],
     ])
@@ -108,6 +115,7 @@ describe('filtered export', () => {
     const excel = toExcelXml('Payments', matrix)
     const pdf = new TextDecoder().decode(toPdfBytes('Payments', matrix))
     expect(excel).toContain('Ada')
+    expect(excel).toContain('Core 3.0')
     expect(excel).toContain('Core Robotics')
     expect(excel).toContain('Under 18')
     expect(excel).not.toContain('Grace')
