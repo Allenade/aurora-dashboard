@@ -28,6 +28,8 @@ export type Enrollment = {
   lastName: string
   email: string | null
   phone: string | null
+  /** Set by the API when enrollments carry a program. Omitted until that ships. */
+  program?: string | null
   tracks: string[]
   amount: number
   currency: string

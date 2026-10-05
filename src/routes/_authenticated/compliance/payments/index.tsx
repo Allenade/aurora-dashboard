@@ -8,6 +8,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Can } from '@/components/ability'
+import { CourseSelect } from '@/components/course-select'
 import { DataTable, type Column } from '@/components/data-tables/data-table'
 import { ExportButtons } from '@/components/export-buttons'
 import { PageHeader, QueryBody } from '@/components/states'
@@ -15,21 +16,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { formatNaira, formatWat } from '@/lib/format'
-import { collectPages } from '@/lib/pages'
+import { loadEnrollments } from '@/lib/load-enrollments'
+import { CORE_PROGRAM, peopleInProgram, programLabel } from '@/lib/program'
 import { queryKeys } from '@/lib/query-keys.factory'
 import {
   EMPTY_REGISTRANT_FILTERS,
   ageLabel,
+  courseOptions,
   filterRegistrants,
   registrantExportColumns,
-  trackChoices,
   type RegistrantFilters,
 } from '@/lib/registrant-filters'
 import { ApiError, api } from '@/queries/api'
 import type { AdminCourse } from '@/queries/courses/interfaces/course.dto'
 import type {
   Enrollment,
-  EnrollmentPage,
   PaymentStatus,
 } from '@/queries/payments/interfaces/payment.dto'
 
@@ -62,28 +63,20 @@ function PaymentsPage() {
     queryKey: queryKeys.enrollments.list({
       q: debouncedQ,
       paymentStatus: status,
+      program: CORE_PROGRAM,
       scope: 'all',
     }),
     placeholderData: keepPreviousData,
-    queryFn: () =>
-      collectPages((pageNumber, limit) =>
-        api<EnrollmentPage>({
-          method: 'GET',
-          path: '/admin/enter-first/enrollments',
-          query: { q: debouncedQ, paymentStatus: status, page: pageNumber, limit },
-        }),
-      ),
+    queryFn: () => loadEnrollments({ q: debouncedQ, paymentStatus: status }),
   })
   const courses = useQuery({
     queryKey: queryKeys.courses.all,
     queryFn: () => api<AdminCourse[]>({ method: 'GET', path: '/admin/courses' }),
   })
   const loaded = list.data?.items ?? []
-  const tracks = useMemo(
-    () => trackChoices(courses.data ?? [], loaded),
-    [courses.data, loaded],
-  )
-  const filtered = useMemo(() => filterRegistrants(loaded, filters), [loaded, filters])
+  const people = useMemo(() => peopleInProgram(loaded), [loaded])
+  const tracks = useMemo(() => courseOptions(courses.data ?? []), [courses.data])
+  const filtered = useMemo(() => filterRegistrants(people, filters), [people, filters])
   const exportColumns = useMemo(() => {
     const names = new Map(tracks)
     return registrantExportColumns((slug) => names.get(slug) ?? slug)
@@ -174,13 +167,13 @@ function PaymentsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="PAYMENTS"
+        eyebrow="CORE 3.0"
         title="Payments"
-        description="Enter First enrollments. Filter by course, age, status, and date. Excel and PDF include every match, not only this page."
+        description="People enrolled in Core 3.0. Filter by course, age, status, and date. Excel and PDF include every match, not only this page."
         actions={
           <ExportButtons
-            filename="payments"
-            title="Payments"
+            filename="core-3-payments"
+            title="Core 3.0 payments"
             columns={exportColumns}
             rows={filtered}
           />
@@ -211,19 +204,16 @@ function PaymentsPage() {
             setSelected([])
           }}
         />
-        <select
-          aria-label="Course"
-          className={selectClass}
+        <span className="text-sm text-muted-foreground">
+          Program <span className="text-foreground">{CORE_PROGRAM}</span>
+        </span>
+        <CourseSelect
+          courses={courses.data}
+          loading={courses.isLoading}
+          error={courses.isError}
           value={filters.track}
-          onChange={(event) => updateFilters({ track: event.target.value })}
-        >
-          <option value="">All courses</option>
-          {tracks.map(([slug, name]) => (
-            <option key={slug} value={slug}>
-              {name}
-            </option>
-          ))}
-        </select>
+          onChange={(track) => updateFilters({ track })}
+        />
         <select
           aria-label="Age"
           className={selectClass}
@@ -273,8 +263,8 @@ function PaymentsPage() {
       </div>
       {list.data?.truncated ? (
         <p className="mb-3 text-sm text-muted-foreground">
-          Loaded the first {loaded.length} enrollments. Course, age, and date are
-          filtered here, so later rows are not included.
+          Loaded the first {loaded.length} enrollments. Program, course, age, and date
+          are applied here, so later rows are not included.
         </p>
       ) : null}
       {selected.length ? (
@@ -290,7 +280,7 @@ function PaymentsPage() {
         {list.data ? (
           <>
             <p className="mb-2 text-sm text-muted-foreground">
-              {filtered.length} of {loaded.length} enrollments
+              {filtered.length} of {people.length} in {CORE_PROGRAM}
             </p>
             <DataTable
               columns={columns}
@@ -299,7 +289,7 @@ function PaymentsPage() {
               empty={
                 filtersActive
                   ? 'No enrollments match these filters'
-                  : 'No enrollments yet'
+                  : `No enrollments in ${CORE_PROGRAM} yet`
               }
             />
             <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
@@ -440,7 +430,8 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
                 {row.paystackReference}
               </p>
               <p>Status {row.paymentStatus}</p>
-              <p>Tracks {row.tracks.join(', ')}</p>
+              <p>Program {programLabel(row)}</p>
+              <p>Courses {row.tracks.join(', ') || '-'}</p>
               <p>Age {ageLabel(row.isMinor)}</p>
               {row.dateOfBirth ? <p>Date of birth {row.dateOfBirth}</p> : null}
               <p>Channel {row.paystackChannel ?? '-'}</p>

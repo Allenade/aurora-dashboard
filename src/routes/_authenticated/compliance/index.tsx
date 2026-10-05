@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Area, AreaChart, CartesianGrid, XAxis } from 'recharts'
 import { PageHeader, QueryBody } from '@/components/states'
@@ -9,6 +9,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { formatCount, formatNaira, formatPercent } from '@/lib/format'
+import { CORE_PROGRAM } from '@/lib/program'
 import { queryKeys } from '@/lib/query-keys.factory'
 import { last30Days } from '@/lib/range'
 import { api } from '@/queries/api'
@@ -77,6 +78,10 @@ function OverviewPage() {
         eyebrow="COMPLIANCE"
         title="Overview"
         description="Last 30 days of enrollment health, from the compliance summary, timeline, and control checks."
+      />
+      <ProgramFolder
+        seats={summary.data?.seats}
+        loading={summary.isLoading && !summary.data}
       />
       <QueryBody
         loading={summary.isLoading || tests.isLoading}
@@ -170,31 +175,69 @@ function OverviewPage() {
                 )}
               </QueryBody>
             </div>
-            <div className="rounded-lg border border-border bg-card">
-              <p className="border-b border-border px-3 py-2 text-sm">Course seats</p>
-              <div className="divide-y divide-border">
-                {summary.data.seats.length === 0 ? (
-                  <p className="px-3 py-6 text-sm text-muted-foreground">
-                    No courses yet.
-                  </p>
-                ) : null}
-                {summary.data.seats.map((seat) => (
-                  <div
-                    key={seat.slug}
-                    className="flex items-center justify-between px-3 py-2 text-sm"
-                  >
-                    <span>{seat.name}</span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {seat.seatsTaken}
-                      {seat.seatCap == null ? '' : ` / ${seat.seatCap}`} · {seat.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         ) : null}
       </QueryBody>
+    </div>
+  )
+}
+
+function ProgramFolder({
+  seats,
+  loading,
+}: {
+  seats: ComplianceSummary['seats'] | undefined
+  loading: boolean
+}) {
+  return (
+    <div className="mb-4 rounded-lg border border-border bg-card">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-3 py-3">
+        <div>
+          <p className="font-display text-[10px] tracking-[0.16em] text-muted-foreground">
+            PROGRAM
+          </p>
+          <h2 className="mt-1 text-base font-semibold">{CORE_PROGRAM}</h2>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            Courses in this program. Open it to see, filter, and export the people
+            enrolled.
+          </p>
+        </div>
+        <Link
+          to="/compliance/payments"
+          aria-label={`Open ${CORE_PROGRAM}`}
+          className="inline-flex h-8 items-center rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground"
+        >
+          Open
+        </Link>
+      </div>
+      <p className="border-b border-border px-3 py-2 text-sm text-muted-foreground">
+        Courses
+      </p>
+      <div className="divide-y divide-border">
+        {loading ? (
+          <p className="px-3 py-6 text-sm text-muted-foreground">Loading courses.</p>
+        ) : null}
+        {!loading && !seats ? (
+          <p className="px-3 py-6 text-sm text-muted-foreground">
+            Courses could not be loaded.
+          </p>
+        ) : null}
+        {!loading && seats && seats.length === 0 ? (
+          <p className="px-3 py-6 text-sm text-muted-foreground">No courses yet.</p>
+        ) : null}
+        {(seats ?? []).map((seat) => (
+          <div
+            key={seat.slug}
+            className="flex items-center justify-between px-3 py-2 text-sm"
+          >
+            <span>{seat.name}</span>
+            <span className="font-mono text-xs text-muted-foreground">
+              {seat.seatsTaken}
+              {seat.seatCap == null ? '' : ` / ${seat.seatCap}`} · {seat.status}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

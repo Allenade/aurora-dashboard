@@ -37,6 +37,15 @@ export function CommandPalette() {
         <CommandList>
           <CommandEmpty>No matching page</CommandEmpty>
           <CommandGroup heading="Compliance">
+            <CommandItem
+              value="Core 3.0"
+              onSelect={() => {
+                setOpen(false)
+                void navigate({ to: '/compliance/payments' })
+              }}
+            >
+              Core 3.0
+            </CommandItem>
             {NAV.map((item) => (
               <CommandItem
                 key={item.to}
