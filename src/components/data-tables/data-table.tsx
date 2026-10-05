@@ -24,13 +24,14 @@ export function DataTable<T extends Record<string, unknown>>({
   onRow?: (row: T) => void
   empty?: string
 }) {
+  const rows = Array.isArray(data) ? data : []
   const table = useLegacyTable({
-    data,
+    data: rows,
     columns: columns as LegacyColumnDef<T>[],
     getCoreRowModel: getCoreRowModel(),
   })
 
-  if (!data.length) {
+  if (!rows.length) {
     return (
       <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
         {empty ?? 'Nothing to show'}

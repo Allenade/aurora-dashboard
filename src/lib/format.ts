@@ -20,10 +20,12 @@ export function formatWat(
   },
 ) {
   if (!iso) return '-'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Africa/Lagos',
     ...options,
-  }).format(new Date(iso))
+  }).format(date)
 }
 
 export function formatWatTime(iso: string | null | undefined) {

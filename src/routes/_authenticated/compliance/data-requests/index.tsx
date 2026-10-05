@@ -4,23 +4,38 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Can } from '@/components/ability'
 import { DataTable, type Column } from '@/components/data-tables/data-table'
+import { ExportButtons } from '@/components/export-buttons'
 import { PageHeader, QueryBody } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatWatDate } from '@/lib/format'
+import type { ExportColumn } from '@/lib/table-export'
 import { queryKeys } from '@/lib/query-keys.factory'
 import { ApiError, api } from '@/queries/api'
-import type { DataRequest, DataRequestExport, DataRequestType } from '@/queries/compliance/interfaces/compliance.dto'
+import type {
+  DataRequest,
+  DataRequestExport,
+  DataRequestType,
+} from '@/queries/compliance/interfaces/compliance.dto'
 
 export const Route = createFileRoute('/_authenticated/compliance/data-requests/')({
   component: DataRequestsPage,
 })
 
+const exportColumns: ExportColumn<DataRequest>[] = [
+  { header: 'Type', value: (row) => row.type },
+  { header: 'Subject', value: (row) => row.subjectEmail },
+  { header: 'Status', value: (row) => row.status },
+  { header: 'Due', value: (row) => formatWatDate(row.dueDate) },
+  { header: 'Opened', value: (row) => formatWatDate(row.createdAt) },
+]
+
 function DataRequestsPage() {
   const client = useQueryClient()
   const requests = useQuery({
     queryKey: queryKeys.compliance.dataRequests,
-    queryFn: () => api<DataRequest[]>({ method: 'GET', path: '/admin/compliance/data-requests' }),
+    queryFn: () =>
+      api<DataRequest[]>({ method: 'GET', path: '/admin/compliance/data-requests' }),
   })
   const [type, setType] = useState<DataRequestType>('access')
   const [email, setEmail] = useState('')
@@ -36,7 +51,10 @@ function DataRequestsPage() {
       setEmail('')
       await client.invalidateQueries({ queryKey: queryKeys.compliance.dataRequests })
     },
-    onError: (error) => toast.error(error instanceof ApiError ? error.message : 'Could not create the request'),
+    onError: (error) =>
+      toast.error(
+        error instanceof ApiError ? error.message : 'Could not create the request',
+      ),
   })
   const act = useMutation({
     mutationFn: (id: string) =>
@@ -45,7 +63,8 @@ function DataRequestsPage() {
       toast.success('Request updated')
       await client.invalidateQueries({ queryKey: queryKeys.compliance.dataRequests })
     },
-    onError: (error) => toast.error(error instanceof ApiError ? error.message : 'Request failed'),
+    onError: (error) =>
+      toast.error(error instanceof ApiError ? error.message : 'Request failed'),
   })
   const download = useMutation({
     mutationFn: (id: string) =>
@@ -54,7 +73,9 @@ function DataRequestsPage() {
         path: `/admin/compliance/data-requests/${id}/export`,
       }),
     onSuccess: (data, id) => {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json',
+      })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -63,20 +84,25 @@ function DataRequestsPage() {
       URL.revokeObjectURL(url)
       toast.success('JSON download started')
     },
-    onError: (error) => toast.error(error instanceof ApiError ? error.message : 'Export failed'),
+    onError: (error) =>
+      toast.error(error instanceof ApiError ? error.message : 'Export failed'),
   })
   const columns: Column<DataRequest>[] = [
     { accessorKey: 'type', header: 'Type' },
     {
       id: 'email',
       header: 'Subject',
-      cell: ({ row }) => <span className="font-mono text-xs">{row.original.subjectEmail}</span>,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs">{row.original.subjectEmail}</span>
+      ),
     },
     { accessorKey: 'status', header: 'Status' },
     {
       id: 'due',
       header: 'Due',
-      cell: ({ row }) => <span className="font-mono text-xs">{formatWatDate(row.original.dueDate)}</span>,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs">{formatWatDate(row.original.dueDate)}</span>
+      ),
     },
     {
       id: 'actions',
@@ -93,7 +119,11 @@ function DataRequestsPage() {
               Download JSON
             </Button>
             {row.original.type === 'delete' ? (
-              <Button size="sm" variant="destructive" onClick={() => act.mutate(row.original.id)}>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => act.mutate(row.original.id)}
+              >
                 Anonymise
               </Button>
             ) : null}
@@ -107,7 +137,15 @@ function DataRequestsPage() {
       <PageHeader
         eyebrow="DATA"
         title="Data requests"
-        description="Access and delete only. Delete requests can be anonymised. Correction is not an API type."
+        description="Access and delete only. Delete requests can be anonymised. Correction is not an API type. Excel and PDF include the rows below."
+        actions={
+          <ExportButtons
+            filename="data-requests"
+            title="Data requests"
+            columns={exportColumns}
+            rows={requests.data ?? []}
+          />
+        }
       />
       <Can action="create" subject="compliance">
         <form
@@ -138,7 +176,13 @@ function DataRequestsPage() {
         </form>
       </Can>
       <QueryBody loading={requests.isLoading} error={requests.error}>
-        {requests.data ? <DataTable columns={columns} data={requests.data} empty="No data requests yet" /> : null}
+        {requests.data ? (
+          <DataTable
+            columns={columns}
+            data={requests.data}
+            empty="No data requests yet"
+          />
+        ) : null}
       </QueryBody>
     </div>
   )

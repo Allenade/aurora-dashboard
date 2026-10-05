@@ -1,19 +1,14 @@
-export type RangeKey = '7d' | '30d' | '90d' | 'ytd'
-
-const MINUTE = 60 * 1000
-const DAY = 24 * 60 * MINUTE
+const DAY = 24 * 60 * 60 * 1000
 
 /**
- * The end of the window is rounded up to the next minute, so the same range
- * gives the same query key for a minute and cached data can be reused.
+ * Last 30 UTC days, ending at the start of the next UTC day.
+ * The same UTC day always returns the same from/to, so the overview query
+ * key does not change on each render.
  */
-export function rangeToQuery(key: RangeKey, now = new Date()) {
-  const end = new Date(Math.ceil(now.getTime() / MINUTE) * MINUTE)
-  const to = end.toISOString()
-  if (key === 'ytd') {
-    const start = new Date(Date.UTC(end.getUTCFullYear(), 0, 1))
-    return { from: start.toISOString(), to }
-  }
-  const days = key === '7d' ? 7 : key === '90d' ? 90 : 30
-  return { from: new Date(end.getTime() - days * DAY).toISOString(), to }
+export function last30Days(now = new Date()) {
+  const end = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
+  )
+  const start = new Date(end.getTime() - 30 * DAY)
+  return { from: start.toISOString(), to: end.toISOString() }
 }
