@@ -1,23 +1,22 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { CourseSelect } from '@/components/course-select'
 import { DataTable, type Column } from '@/components/data-tables/data-table'
 import { ExportButtons } from '@/components/export-buttons'
 import { PageHeader, QueryBody } from '@/components/states'
 import { Button } from '@/components/ui/button'
-import { collectPages } from '@/lib/pages'
+import { loadEnrollments } from '@/lib/load-enrollments'
+import { CORE_PROGRAM, peopleInProgram } from '@/lib/program'
 import { queryKeys } from '@/lib/query-keys.factory'
 import {
+  courseOptions,
   filterRegistrants,
   registrantExportColumns,
-  trackChoices,
 } from '@/lib/registrant-filters'
 import { api } from '@/queries/api'
 import type { AdminCourse } from '@/queries/courses/interfaces/course.dto'
-import type {
-  Enrollment,
-  EnrollmentPage,
-} from '@/queries/payments/interfaces/payment.dto'
+import type { Enrollment } from '@/queries/payments/interfaces/payment.dto'
 
 export const Route = createFileRoute('/_authenticated/compliance/minors/')({
   component: MinorsPage,
@@ -26,7 +25,7 @@ export const Route = createFileRoute('/_authenticated/compliance/minors/')({
 function MinorsPage() {
   const [track, setTrack] = useState('')
   const minors = useQuery({
-    queryKey: ['enrollments', 'minors'],
+    queryKey: ['enrollments', 'minors', CORE_PROGRAM],
     queryFn: () => loadMinors(),
   })
   const courses = useQuery({
@@ -34,13 +33,11 @@ function MinorsPage() {
     queryFn: () => api<AdminCourse[]>({ method: 'GET', path: '/admin/courses' }),
   })
   const loaded = minors.data?.items ?? []
-  const tracks = useMemo(
-    () => trackChoices(courses.data ?? [], loaded),
-    [courses.data, loaded],
-  )
+  const people = useMemo(() => peopleInProgram(loaded), [loaded])
+  const tracks = useMemo(() => courseOptions(courses.data ?? []), [courses.data])
   const filtered = useMemo(
-    () => filterRegistrants(loaded, { track, age: 'all', from: '', to: '' }),
-    [loaded, track],
+    () => filterRegistrants(people, { track, age: 'all', from: '', to: '' }),
+    [people, track],
   )
   const exportColumns = useMemo(() => {
     const names = new Map(tracks)
@@ -82,32 +79,29 @@ function MinorsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="MINORS"
+        eyebrow="CORE 3.0"
         title="Minors"
-        description="Enrollments marked under 18. The list API has no minor filter, so this page reads each page. Excel and PDF include the rows that match the course filter."
+        description="People under 18 in Core 3.0. The list API has no minor filter, so this page reads each page. Excel and PDF include the rows that match the course filter."
         actions={
           <ExportButtons
-            filename="minors"
-            title="Minors"
+            filename="core-3-minors"
+            title="Core 3.0 minors"
             columns={exportColumns}
             rows={filtered}
           />
         }
       />
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <select
-          aria-label="Course"
-          className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
+        <span className="text-sm text-muted-foreground">
+          Program <span className="text-foreground">{CORE_PROGRAM}</span>
+        </span>
+        <CourseSelect
+          courses={courses.data}
+          loading={courses.isLoading}
+          error={courses.isError}
           value={track}
-          onChange={(event) => setTrack(event.target.value)}
-        >
-          <option value="">All courses</option>
-          {tracks.map(([slug, name]) => (
-            <option key={slug} value={slug}>
-              {name}
-            </option>
-          ))}
-        </select>
+          onChange={setTrack}
+        />
         {track ? (
           <Button size="sm" variant="ghost" onClick={() => setTrack('')}>
             Clear
@@ -119,17 +113,22 @@ function MinorsPage() {
           <>
             {minors.data.truncated ? (
               <p className="mb-3 text-sm text-muted-foreground">
-                Loaded the first {loaded.length} enrollments, then kept the minors.
-                Later pages are not included.
+                Loaded the first {minors.data.loaded} enrollments, then kept minors in{' '}
+                {CORE_PROGRAM}. Later pages are not included.
               </p>
             ) : null}
             <p className="mb-3 text-sm text-muted-foreground">
-              {filtered.length} minors · {missing} without guardian consent
+              {filtered.length} minors in {CORE_PROGRAM} · {missing} without guardian
+              consent
             </p>
             <DataTable
               columns={columns}
               data={filtered}
-              empty={track ? 'No minors match that course' : 'No minors yet'}
+              empty={
+                track
+                  ? 'No minors match that course'
+                  : `No minors in ${CORE_PROGRAM} yet`
+              }
             />
           </>
         ) : null}
@@ -139,15 +138,11 @@ function MinorsPage() {
 }
 
 async function loadMinors() {
-  const collected = await collectPages((page, limit) =>
-    api<EnrollmentPage>({
-      method: 'GET',
-      path: '/admin/enter-first/enrollments',
-      query: { page, limit },
-    }),
-  )
+  const collected = await loadEnrollments()
+  const inProgram = peopleInProgram(collected.items)
   return {
-    items: collected.items.filter((item) => item.isMinor),
+    items: inProgram.filter((item) => item.isMinor),
+    loaded: collected.items.length,
     truncated: collected.truncated,
   }
 }
