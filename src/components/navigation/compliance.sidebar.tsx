@@ -12,11 +12,15 @@ import {
   Shield01Icon,
   UndoIcon,
   UserGroupIcon,
+  UserIcon,
   LeftToRightListDashIcon,
   Logout01Icon,
 } from '@hugeicons/core-free-icons'
 import { cn } from 'cn'
+import { useSessionUser } from '@/components/ability'
+import { isSuperAdmin } from '@/lib/ability'
 import { useSignOut } from '@/queries/auth/session'
+import type { SessionUser } from '@/queries/auth/interfaces/session.dto'
 
 export const NAV = [
   {
@@ -108,6 +112,14 @@ export const NAV = [
     section: null,
   },
   {
+    to: '/compliance/users',
+    label: 'Users',
+    icon: UserIcon,
+    exact: false,
+    badgeKey: null,
+    section: null,
+  },
+  {
     to: '/compliance/settings',
     label: 'Settings',
     icon: Settings01Icon,
@@ -116,6 +128,10 @@ export const NAV = [
     section: null,
   },
 ] as const
+
+export function navFor(user: SessionUser | null) {
+  return NAV.filter((item) => item.to !== '/compliance/users' || isSuperAdmin(user))
+}
 
 export type BadgeKey = Exclude<(typeof NAV)[number]['badgeKey'], null>
 
@@ -128,6 +144,7 @@ export function ComplianceSidebar({
 }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { signOut, pending } = useSignOut()
+  const items = navFor(useSessionUser())
   return (
     <div className="flex h-full flex-col bg-black">
       <div className="px-4 py-4">
@@ -137,7 +154,7 @@ export function ComplianceSidebar({
         </p>
       </div>
       <nav className="flex-1 space-y-0.5 px-2">
-        {groupNav(NAV).map((group, index) => {
+        {groupNav(items).map((group, index) => {
           const folderOpen =
             group.section != null &&
             group.items.some((item) =>

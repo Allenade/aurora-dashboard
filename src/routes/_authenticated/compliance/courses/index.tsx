@@ -56,7 +56,11 @@ function CoursesPage() {
   })
   const [selected, setSelected] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string
+    name: string
+    enrollmentCount: number
+  } | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
 
   const remove = useMutation({
@@ -142,7 +146,11 @@ function CoursesPage() {
                   variant="destructive"
                   aria-label={`Delete ${row.original.name}`}
                   onClick={() =>
-                    setPendingDelete({ id: row.original.id, name: row.original.name })
+                    setPendingDelete({
+                      id: row.original.id,
+                      name: row.original.name,
+                      enrollmentCount: row.original.enrollmentCount,
+                    })
                   }
                 >
                   Delete
@@ -194,14 +202,20 @@ function CoursesPage() {
         id={selected}
         onClose={() => setSelected(null)}
         onChanged={() => void queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })}
-        onRequestDelete={(course) => setPendingDelete({ id: course.id, name: course.name })}
+        onRequestDelete={(course) =>
+          setPendingDelete({
+            id: course.id,
+            name: course.name,
+            enrollmentCount: course.enrollmentCount,
+          })
+        }
       />
       <ConfirmDeleteDialog
         open={pendingDelete != null}
         title="Delete this course?"
         description={
           pendingDelete
-            ? `${pendingDelete.name} will be removed. This cannot be undone.`
+            ? courseDeleteMessage(pendingDelete)
             : 'This course will be removed. This cannot be undone.'
         }
         confirmLabel="Delete"
@@ -216,7 +230,7 @@ function CoursesPage() {
       <ConfirmDeleteDialog
         open={confirmClear}
         title="Delete all courses?"
-        description="This deletes every course. This cannot be undone."
+        description={clearAllCoursesMessage(courses.data ?? [])}
         confirmLabel="Delete all courses"
         pending={clearAll.isPending}
         requirePhrase="delete all"
@@ -534,6 +548,20 @@ function CreateCourseSheet({
       </SheetContent>
     </Sheet>
   )
+}
+
+function courseDeleteMessage(course: { name: string; enrollmentCount: number }) {
+  if (course.enrollmentCount > 0) {
+    return `${course.name} will be removed. People who paid will lose access, and their records for this course will be cleared. This cannot be undone.`
+  }
+  return `${course.name} will be removed. This cannot be undone.`
+}
+
+function clearAllCoursesMessage(courses: Array<{ enrollmentCount: number }>) {
+  if (courses.some((course) => course.enrollmentCount > 0)) {
+    return 'This deletes every course. People who paid will lose access, and those records will be cleared. This cannot be undone.'
+  }
+  return 'This deletes every course. This cannot be undone.'
 }
 
 function historyAmount(value: number | null) {

@@ -4,7 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AbilityProvider } from '@/components/ability'
 import { sessionUser, type AppRole } from '@/lib/roles'
-import type { AdminCourse, AdminCourseDetail } from '@/queries/courses/interfaces/course.dto'
+import type {
+  AdminCourse,
+  AdminCourseDetail,
+} from '@/queries/courses/interfaces/course.dto'
 import { Route } from '@/routes/_authenticated/compliance/courses/index'
 
 const { api } = vi.hoisted(() => ({
@@ -47,6 +50,16 @@ const closedCourse: AdminCourse = {
   enrollmentCount: 2,
 }
 
+const emptyCourse: AdminCourse = {
+  ...openCourse,
+  id: 'course-empty',
+  slug: 'draft-lab',
+  name: 'Draft lab',
+  status: 'draft',
+  enrollmentCount: 0,
+  seatsTaken: 0,
+}
+
 function detail(course: AdminCourse): AdminCourseDetail {
   return { ...course, priceHistory: [] }
 }
@@ -78,13 +91,25 @@ describe('courses page', () => {
     api.mockReset()
     api.mockImplementation(async (request: { method: string; path: string }) => {
       if (request.method === 'GET' && request.path === '/admin/courses') {
-        return [openCourse, closedCourse]
+        return [openCourse, closedCourse, emptyCourse]
       }
-      if (request.method === 'GET' && request.path === `/admin/courses/${openCourse.id}`) {
+      if (
+        request.method === 'GET' &&
+        request.path === `/admin/courses/${openCourse.id}`
+      ) {
         return detail(openCourse)
       }
-      if (request.method === 'GET' && request.path === `/admin/courses/${closedCourse.id}`) {
+      if (
+        request.method === 'GET' &&
+        request.path === `/admin/courses/${closedCourse.id}`
+      ) {
         return detail(closedCourse)
+      }
+      if (
+        request.method === 'GET' &&
+        request.path === `/admin/courses/${emptyCourse.id}`
+      ) {
+        return detail(emptyCourse)
       }
       return { ok: true }
     })
@@ -94,17 +119,28 @@ describe('courses page', () => {
     const user = userEvent.setup()
     renderCourses('super_admin')
 
-    expect(await screen.findByRole('button', { name: 'Delete Robotics' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Delete Robotics' }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete Vision' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete all courses' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Delete all courses' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('Closed')).toBeInTheDocument()
     expect(screen.queryByText(/past cutoff/i)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Delete Robotics' }))
     const dialog = await screen.findByRole('dialog', { name: 'Delete this course?' })
-    expect(within(dialog).getByText('Robotics will be removed. This cannot be undone.')).toBeInTheDocument()
+    expect(
+      within(dialog).getByText(
+        'Robotics will be removed. People who paid will lose access, and their records for this course will be cleared. This cannot be undone.',
+      ),
+    ).toBeInTheDocument()
     expect(api).not.toHaveBeenCalledWith(
-      expect.objectContaining({ method: 'DELETE', path: `/admin/courses/${openCourse.id}` }),
+      expect.objectContaining({
+        method: 'DELETE',
+        path: `/admin/courses/${openCourse.id}`,
+      }),
     )
 
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
@@ -121,6 +157,11 @@ describe('courses page', () => {
 
     await user.click(screen.getByRole('button', { name: 'Delete all courses' }))
     const dialog = await screen.findByRole('dialog', { name: 'Delete all courses?' })
+    expect(
+      within(dialog).getByText(
+        'This deletes every course. People who paid will lose access, and those records will be cleared. This cannot be undone.',
+      ),
+    ).toBeInTheDocument()
     const confirm = within(dialog).getByRole('button', { name: 'Delete all courses' })
     expect(confirm).toBeDisabled()
 
@@ -158,7 +199,20 @@ describe('courses page', () => {
     await user.click(within(robotics).getByRole('button', { name: 'Close' }))
     await user.click(await screen.findByRole('cell', { name: 'Vision' }))
     const vision = await screen.findByRole('dialog', { name: 'Vision' })
-    expect(within(vision).getByRole('button', { name: 'Delete Vision' })).toBeInTheDocument()
+    expect(
+      within(vision).getByRole('button', { name: 'Delete Vision' }),
+    ).toBeInTheDocument()
     expect(within(vision).getByRole('combobox')).toHaveValue('closed')
+  })
+
+  it('keeps the shorter confirm when nobody has signed up', async () => {
+    const user = userEvent.setup()
+    renderCourses('super_admin')
+    await user.click(await screen.findByRole('button', { name: 'Delete Draft lab' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this course?' })
+    expect(
+      within(dialog).getByText('Draft lab will be removed. This cannot be undone.'),
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByText(/lose access/i)).not.toBeInTheDocument()
   })
 })
