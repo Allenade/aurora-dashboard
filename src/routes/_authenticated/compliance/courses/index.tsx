@@ -40,7 +40,7 @@ export const Route = createFileRoute('/_authenticated/compliance/courses/')({
   component: CoursesPage,
 })
 
-/** Bulk delete. Matches DELETE /admin/courses/clear-all on the API. */
+/** Bulk delete. Matches POST /admin/courses/clear-all on the API. */
 const CLEAR_ALL_COURSES_PATH = '/admin/courses/clear-all'
 
 function CoursesPage() {
@@ -74,7 +74,7 @@ function CoursesPage() {
 
   const clearAll = useMutation({
     mutationFn: () => api<{ ok?: boolean; deleted?: number } | null>({
-      method: 'DELETE',
+      method: 'POST',
       path: CLEAR_ALL_COURSES_PATH,
     }),
     onSuccess: async () => {

@@ -129,7 +129,7 @@ describe('courses page', () => {
     await user.click(confirm)
 
     expect(api).toHaveBeenCalledWith({
-      method: 'DELETE',
+      method: 'POST',
       path: '/admin/courses/clear-all',
     })
   })
