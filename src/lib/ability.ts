@@ -74,6 +74,10 @@ export function isViewer(user: SessionUser | null) {
   return user?.roles.some((role) => role.slug === 'compliance_viewer') ?? false
 }
 
+export function isSuperAdmin(user: SessionUser | null) {
+  return user?.roles.some((role) => role.slug === 'super_admin') ?? false
+}
+
 function toList(value: string | string[]) {
   return Array.isArray(value) ? value : [value]
 }

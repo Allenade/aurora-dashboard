@@ -7,7 +7,7 @@ import {
 } from '@/lib/course-price'
 import { maskEmail, maskName, maskPhone } from '@/lib/pii'
 import { permissionsForRole, sessionUser } from '@/lib/roles'
-import { allows, defineAbilityFor, isViewer, shouldMaskPii } from '@/lib/ability'
+import { allows, defineAbilityFor, isSuperAdmin, isViewer, shouldMaskPii } from '@/lib/ability'
 import { exceptionLabel } from '@/queries/compliance/interfaces/compliance.dto'
 
 describe('course price', () => {
@@ -86,7 +86,12 @@ describe('roles', () => {
     expect(viewer.roles[0]?.name).toBe('Compliance Viewer')
     expect(allows(defineAbilityFor(admin), 'update', 'course')).toBe(true)
     expect(allows(defineAbilityFor(admin), 'delete', 'email')).toBe(true)
+    expect(allows(defineAbilityFor(admin), 'delete', 'course')).toBe(true)
     expect(allows(defineAbilityFor(admin), 'manage', 'settings')).toBe(true)
+    expect(isSuperAdmin(admin)).toBe(true)
+    expect(isSuperAdmin(manager)).toBe(false)
+    expect(isSuperAdmin(viewer)).toBe(false)
+    expect(isSuperAdmin(null)).toBe(false)
     expect(permissionsForRole('compliance_viewer').some((item) => item.action === 'update')).toBe(
       false,
     )
