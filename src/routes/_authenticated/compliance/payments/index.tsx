@@ -7,14 +7,23 @@ import {
 } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Can } from '@/components/ability'
+import { Can, useSessionUser } from '@/components/ability'
 import { CourseSelect } from '@/components/course-select'
 import { DataTable, type Column } from '@/components/data-tables/data-table'
 import { ExportButtons } from '@/components/export-buttons'
 import { PageHeader, QueryBody } from '@/components/states'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { isSuperAdmin } from '@/lib/ability'
 import { formatNaira, formatWat } from '@/lib/format'
 import { loadEnrollments } from '@/lib/load-enrollments'
 import { CORE_PROGRAM, peopleInProgram, programLabel } from '@/lib/program'
@@ -50,7 +59,18 @@ const PAGE_SIZE = 20
 
 const selectClass = 'h-8 rounded-lg border border-input bg-transparent px-2 text-sm'
 
+/** One record. Matches DELETE /admin/enter-first/enrollments/:id. */
+function deleteEnrollmentPath(id: string) {
+  return `/admin/enter-first/enrollments/${id}`
+}
+
+/** Every record. Matches POST /admin/enter-first/enrollments/clear-all. */
+const CLEAR_ALL_ENROLLMENTS_PATH = '/admin/enter-first/enrollments/clear-all'
+
 function PaymentsPage() {
+  const signedIn = useSessionUser()
+  const canDelete = isSuperAdmin(signedIn)
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState('all')
   const [q, setQ] = useState('')
   const debouncedQ = useDebounced(q)
@@ -58,6 +78,8 @@ function PaymentsPage() {
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string[]>([])
   const [openId, setOpenId] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Enrollment | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
   const status = TABS.find((item) => item.id === tab)?.status
   const list = useQuery({
     queryKey: queryKeys.enrollments.list({
@@ -93,6 +115,41 @@ function PaymentsPage() {
     setPage(1)
     setSelected([])
   }
+
+  const remove = useMutation({
+    mutationFn: (id: string) =>
+      api<{ ok?: boolean }>({ method: 'DELETE', path: deleteEnrollmentPath(id) }),
+    onSuccess: async (_result, id) => {
+      toast.success('Payment record deleted')
+      setPendingDelete(null)
+      setSelected((current) => current.filter((item) => item !== id))
+      setOpenId((current) => (current === id ? null : current))
+      await queryClient.invalidateQueries({ queryKey: ['enrollments'] })
+    },
+    onError: (error) =>
+      toast.error(
+        error instanceof ApiError ? error.message : 'Could not delete the payment record',
+      ),
+  })
+
+  const clearAll = useMutation({
+    mutationFn: () =>
+      api<{ ok?: boolean; deleted?: number } | null>({
+        method: 'POST',
+        path: CLEAR_ALL_ENROLLMENTS_PATH,
+      }),
+    onSuccess: async () => {
+      toast.success('All payment records deleted')
+      setConfirmClear(false)
+      setSelected([])
+      setOpenId(null)
+      await queryClient.invalidateQueries({ queryKey: ['enrollments'] })
+    },
+    onError: (error) =>
+      toast.error(
+        error instanceof ApiError ? error.message : 'Could not delete the payment records',
+      ),
+  })
 
   const columns: Column<Enrollment>[] = [
     {
@@ -162,6 +219,27 @@ function PaymentsPage() {
         </span>
       ),
     },
+    ...(canDelete
+      ? [
+          {
+            id: 'delete',
+            header: '',
+            cell: ({ row }: { row: { original: Enrollment } }) => (
+              <div onClick={(event) => event.stopPropagation()}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  aria-label={`Delete ${row.original.firstName} ${row.original.lastName}`}
+                  onClick={() => setPendingDelete(row.original)}
+                >
+                  Delete
+                </Button>
+              </div>
+            ),
+          } satisfies Column<Enrollment>,
+        ]
+      : []),
   ]
 
   return (
@@ -171,12 +249,23 @@ function PaymentsPage() {
         title="Payments"
         description="People enrolled in Core 3.0. Filter by course, age, status, and date. Excel and PDF include every match, not only this page."
         actions={
-          <ExportButtons
-            filename="core-3-payments"
-            title="Core 3.0 payments"
-            columns={exportColumns}
-            rows={filtered}
-          />
+          <>
+            {canDelete && people.length > 0 ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setConfirmClear(true)}
+              >
+                Delete all
+              </Button>
+            ) : null}
+            <ExportButtons
+              filename="core-3-payments"
+              title="Core 3.0 payments"
+              columns={exportColumns}
+              rows={filtered}
+            />
+          </>
         }
       />
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -319,7 +408,91 @@ function PaymentsPage() {
         ) : null}
       </QueryBody>
       <EnrollmentDrawer id={openId} onClose={() => setOpenId(null)} />
+      <ConfirmDeleteDialog
+        open={pendingDelete != null}
+        title="Delete this payment record?"
+        description="This cannot be undone. It will not refund them."
+        confirmLabel="Delete"
+        pending={remove.isPending}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+        onConfirm={() => {
+          if (pendingDelete) remove.mutate(pendingDelete.id)
+        }}
+      />
+      <ConfirmDeleteDialog
+        open={confirmClear}
+        title="Delete all payment records?"
+        description="This removes every payment record. It will not refund anyone."
+        confirmLabel="Delete all"
+        pending={clearAll.isPending}
+        requirePhrase="delete all"
+        onOpenChange={setConfirmClear}
+        onConfirm={() => clearAll.mutate()}
+      />
     </div>
+  )
+}
+
+function ConfirmDeleteDialog({
+  open,
+  title,
+  description,
+  confirmLabel,
+  pending,
+  requirePhrase,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean
+  title: string
+  description: string
+  confirmLabel: string
+  pending: boolean
+  requirePhrase?: string
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  const [typed, setTyped] = useState('')
+  useEffect(() => {
+    if (!open) setTyped('')
+  }, [open])
+  const phrase = requirePhrase?.trim().toLowerCase() ?? ''
+  const ready = !phrase || typed.trim().toLowerCase() === phrase
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        {phrase ? (
+          <label className="block space-y-1.5 text-sm">
+            <span>Type {requirePhrase} to confirm</span>
+            <Input
+              value={typed}
+              autoComplete="off"
+              onChange={(event) => setTyped(event.target.value)}
+            />
+          </label>
+        ) : null}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={!ready || pending}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
