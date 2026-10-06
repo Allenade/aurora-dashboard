@@ -9,7 +9,8 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { NAV } from '@/components/navigation/compliance.sidebar'
+import { useSessionUser } from '@/components/ability'
+import { navFor } from '@/components/navigation/compliance.sidebar'
 import { useUiStore } from '@/lib/ui-store'
 import { useSignOut } from '@/queries/auth/session'
 
@@ -18,6 +19,7 @@ export function CommandPalette() {
   const setOpen = useUiStore((state) => state.setCommandOpen)
   const navigate = useNavigate()
   const { signOut } = useSignOut()
+  const items = navFor(useSessionUser())
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -46,7 +48,7 @@ export function CommandPalette() {
             >
               Core 3.0
             </CommandItem>
-            {NAV.map((item) => (
+            {items.map((item) => (
               <CommandItem
                 key={item.to}
                 value={item.label}

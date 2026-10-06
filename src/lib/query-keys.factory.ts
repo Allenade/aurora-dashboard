@@ -14,6 +14,9 @@ export const queryKeys = {
     all: ['courses'] as const,
     detail: (id: string) => ['courses', id] as const,
   },
+  users: {
+    all: ['users'] as const,
+  },
   enrollments: {
     list: (query: Record<string, string | number | undefined>) =>
       ['enrollments', query] as const,
