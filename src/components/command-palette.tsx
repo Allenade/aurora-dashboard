@@ -9,7 +9,8 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { NAV } from '@/components/navigation/compliance.sidebar'
+import { useSessionUser } from '@/components/ability'
+import { navFor } from '@/components/navigation/compliance.sidebar'
 import { useUiStore } from '@/lib/ui-store'
 import { useSignOut } from '@/queries/auth/session'
 
@@ -18,6 +19,7 @@ export function CommandPalette() {
   const setOpen = useUiStore((state) => state.setCommandOpen)
   const navigate = useNavigate()
   const { signOut } = useSignOut()
+  const items = navFor(useSessionUser())
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -37,7 +39,16 @@ export function CommandPalette() {
         <CommandList>
           <CommandEmpty>No matching page</CommandEmpty>
           <CommandGroup heading="Compliance">
-            {NAV.map((item) => (
+            <CommandItem
+              value="Core 3.0"
+              onSelect={() => {
+                setOpen(false)
+                void navigate({ to: '/compliance/payments' })
+              }}
+            >
+              Core 3.0
+            </CommandItem>
+            {items.map((item) => (
               <CommandItem
                 key={item.to}
                 value={item.label}

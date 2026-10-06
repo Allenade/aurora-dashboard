@@ -26,6 +26,7 @@ import { Route as AuthenticatedComplianceMinorsIndexRouteImport } from './routes
 import { Route as AuthenticatedCompliancePaymentsIndexRouteImport } from './routes/_authenticated/compliance/payments/index'
 import { Route as AuthenticatedComplianceRefundsIndexRouteImport } from './routes/_authenticated/compliance/refunds/index'
 import { Route as AuthenticatedComplianceSettingsIndexRouteImport } from './routes/_authenticated/compliance/settings/index'
+import { Route as AuthenticatedComplianceUsersIndexRouteImport } from './routes/_authenticated/compliance/users/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -124,6 +125,12 @@ const AuthenticatedComplianceSettingsIndexRoute =
     path: '/settings/',
     getParentRoute: () => AuthenticatedComplianceRouteRoute,
   } as any)
+const AuthenticatedComplianceUsersIndexRoute =
+  AuthenticatedComplianceUsersIndexRouteImport.update({
+    id: '/users/',
+    path: '/users/',
+    getParentRoute: () => AuthenticatedComplianceRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/compliance/payments/': typeof AuthenticatedCompliancePaymentsIndexRoute
   '/compliance/refunds/': typeof AuthenticatedComplianceRefundsIndexRoute
   '/compliance/settings/': typeof AuthenticatedComplianceSettingsIndexRoute
+  '/compliance/users/': typeof AuthenticatedComplianceUsersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -159,6 +167,7 @@ export interface FileRoutesByTo {
   '/compliance/payments': typeof AuthenticatedCompliancePaymentsIndexRoute
   '/compliance/refunds': typeof AuthenticatedComplianceRefundsIndexRoute
   '/compliance/settings': typeof AuthenticatedComplianceSettingsIndexRoute
+  '/compliance/users': typeof AuthenticatedComplianceUsersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -179,6 +188,7 @@ export interface FileRoutesById {
   '/_authenticated/compliance/payments/': typeof AuthenticatedCompliancePaymentsIndexRoute
   '/_authenticated/compliance/refunds/': typeof AuthenticatedComplianceRefundsIndexRoute
   '/_authenticated/compliance/settings/': typeof AuthenticatedComplianceSettingsIndexRoute
+  '/_authenticated/compliance/users/': typeof AuthenticatedComplianceUsersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/compliance/payments/'
     | '/compliance/refunds/'
     | '/compliance/settings/'
+    | '/compliance/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/compliance/payments'
     | '/compliance/refunds'
     | '/compliance/settings'
+    | '/compliance/users'
   id:
     | '__root__'
     | '/'
@@ -235,6 +247,7 @@ export interface FileRouteTypes {
     | '/_authenticated/compliance/payments/'
     | '/_authenticated/compliance/refunds/'
     | '/_authenticated/compliance/settings/'
+    | '/_authenticated/compliance/users/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -365,6 +378,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedComplianceSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedComplianceRouteRoute
     }
+    '/_authenticated/compliance/users/': {
+      id: '/_authenticated/compliance/users/'
+      path: '/users'
+      fullPath: '/compliance/users/'
+      preLoaderRoute: typeof AuthenticatedComplianceUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedComplianceRouteRoute
+    }
   }
 }
 
@@ -381,6 +401,7 @@ interface AuthenticatedComplianceRouteRouteChildren {
   AuthenticatedCompliancePaymentsIndexRoute: typeof AuthenticatedCompliancePaymentsIndexRoute
   AuthenticatedComplianceRefundsIndexRoute: typeof AuthenticatedComplianceRefundsIndexRoute
   AuthenticatedComplianceSettingsIndexRoute: typeof AuthenticatedComplianceSettingsIndexRoute
+  AuthenticatedComplianceUsersIndexRoute: typeof AuthenticatedComplianceUsersIndexRoute
 }
 
 const AuthenticatedComplianceRouteRouteChildren: AuthenticatedComplianceRouteRouteChildren =
@@ -408,6 +429,8 @@ const AuthenticatedComplianceRouteRouteChildren: AuthenticatedComplianceRouteRou
       AuthenticatedComplianceRefundsIndexRoute,
     AuthenticatedComplianceSettingsIndexRoute:
       AuthenticatedComplianceSettingsIndexRoute,
+    AuthenticatedComplianceUsersIndexRoute:
+      AuthenticatedComplianceUsersIndexRoute,
   }
 
 const AuthenticatedComplianceRouteRouteWithChildren =
@@ -437,12 +460,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

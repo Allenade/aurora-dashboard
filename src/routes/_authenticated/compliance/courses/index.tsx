@@ -1,16 +1,25 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Can, useAbility } from '@/components/ability'
+import { Can, useAbility, useSessionUser } from '@/components/ability'
 import { DataTable, type Column } from '@/components/data-tables/data-table'
 import { EmptyState, PageHeader, QueryBody } from '@/components/states'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { allows } from '@/lib/ability'
+import { allows, isSuperAdmin } from '@/lib/ability'
+import { courseStatusLabel, editableCourseStatus } from '@/lib/course-status'
 import {
   coursePriceSet,
   formatCoursePrice,
@@ -31,9 +40,15 @@ export const Route = createFileRoute('/_authenticated/compliance/courses/')({
   component: CoursesPage,
 })
 
+/** Bulk delete. Matches POST /admin/courses/clear-all on the API. */
+const CLEAR_ALL_COURSES_PATH = '/admin/courses/clear-all'
+
 function CoursesPage() {
   const ability = useAbility()
+  const user = useSessionUser()
   const canUpdate = allows(ability, 'update', 'course')
+  const canDelete = allows(ability, 'delete', 'course')
+  const canClearAll = canDelete && isSuperAdmin(user)
   const queryClient = useQueryClient()
   const courses = useQuery({
     queryKey: queryKeys.courses.all,
@@ -41,13 +56,47 @@ function CoursesPage() {
   })
   const [selected, setSelected] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string
+    name: string
+    enrollmentCount: number
+  } | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
+
+  const remove = useMutation({
+    mutationFn: (id: string) =>
+      api<{ ok: boolean }>({ method: 'DELETE', path: `/admin/courses/${id}` }),
+    onSuccess: async (_result, id) => {
+      toast.success('Course deleted')
+      setPendingDelete(null)
+      if (selected === id) setSelected(null)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete the course'),
+  })
+
+  const clearAll = useMutation({
+    mutationFn: () => api<{ ok?: boolean; deleted?: number } | null>({
+      method: 'POST',
+      path: CLEAR_ALL_COURSES_PATH,
+    }),
+    onSuccess: async () => {
+      toast.success('All courses deleted')
+      setConfirmClear(false)
+      setSelected(null)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete the courses'),
+  })
 
   const columns: Column<AdminCourse>[] = [
     { accessorKey: 'name', header: 'Course' },
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <span className="capitalize">{row.original.status}</span>,
+      cell: ({ row }) => courseStatusLabel(row.original.status),
     },
     {
       id: 'price',
@@ -84,6 +133,33 @@ function CoursesPage() {
       header: 'Enrollments',
       cell: ({ row }) => <span className="font-mono">{row.original.enrollmentCount}</span>,
     },
+    ...(canDelete
+      ? [
+          {
+            id: 'delete',
+            header: '',
+            cell: ({ row }: { row: { original: AdminCourse } }) => (
+              <div onClick={(event) => event.stopPropagation()}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  aria-label={`Delete ${row.original.name}`}
+                  onClick={() =>
+                    setPendingDelete({
+                      id: row.original.id,
+                      name: row.original.name,
+                      enrollmentCount: row.original.enrollmentCount,
+                    })
+                  }
+                >
+                  Delete
+                </Button>
+              </div>
+            ),
+          } satisfies Column<AdminCourse>,
+        ]
+      : []),
   ]
 
   return (
@@ -93,9 +169,20 @@ function CoursesPage() {
         title="Courses"
         description="Prices are set here. A draft or closed course can have no price. Opening a paid course needs a price or Free."
         actions={
-          <Can action="create" subject="course">
-            <Button onClick={() => setCreating(true)}>New course</Button>
-          </Can>
+          <>
+            {canClearAll && courses.data && courses.data.length > 0 ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setConfirmClear(true)}
+              >
+                Delete all courses
+              </Button>
+            ) : null}
+            <Can action="create" subject="course">
+              <Button onClick={() => setCreating(true)}>New course</Button>
+            </Can>
+          </>
         }
       />
       <QueryBody loading={courses.isLoading} error={courses.error}>
@@ -115,6 +202,40 @@ function CoursesPage() {
         id={selected}
         onClose={() => setSelected(null)}
         onChanged={() => void queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })}
+        onRequestDelete={(course) =>
+          setPendingDelete({
+            id: course.id,
+            name: course.name,
+            enrollmentCount: course.enrollmentCount,
+          })
+        }
+      />
+      <ConfirmDeleteDialog
+        open={pendingDelete != null}
+        title="Delete this course?"
+        description={
+          pendingDelete
+            ? courseDeleteMessage(pendingDelete)
+            : 'This course will be removed. This cannot be undone.'
+        }
+        confirmLabel="Delete"
+        pending={remove.isPending}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+        onConfirm={() => {
+          if (pendingDelete) remove.mutate(pendingDelete.id)
+        }}
+      />
+      <ConfirmDeleteDialog
+        open={confirmClear}
+        title="Delete all courses?"
+        description={clearAllCoursesMessage(courses.data ?? [])}
+        confirmLabel="Delete all courses"
+        pending={clearAll.isPending}
+        requirePhrase="delete all"
+        onOpenChange={setConfirmClear}
+        onConfirm={() => clearAll.mutate()}
       />
       <CreateCourseSheet
         open={creating}
@@ -132,10 +253,12 @@ function CourseDrawer({
   id,
   onClose,
   onChanged,
+  onRequestDelete,
 }: {
   id: string | null
   onClose: () => void
   onChanged: () => void
+  onRequestDelete: (course: AdminCourseDetail) => void
 }) {
   const detail = useQuery({
     queryKey: queryKeys.courses.detail(id ?? 'none'),
@@ -151,14 +274,15 @@ function CourseDrawer({
         <QueryBody loading={detail.isLoading} error={detail.error}>
           {detail.data ? (
             <CourseForm
+              key={detail.data.id}
               course={detail.data}
               onChanged={() => {
                 onChanged()
                 void detail.refetch()
               }}
-              onDeleted={() => {
-                onChanged()
-                onClose()
+              onRequestDelete={() => {
+                const course = detail.data
+                if (course) onRequestDelete(course)
               }}
             />
           ) : null}
@@ -171,11 +295,11 @@ function CourseDrawer({
 function CourseForm({
   course,
   onChanged,
-  onDeleted,
+  onRequestDelete,
 }: {
   course: AdminCourseDetail
   onChanged: () => void
-  onDeleted: () => void
+  onRequestDelete: () => void
 }) {
   const [name, setName] = useState(course.name)
   const [description, setDescription] = useState(course.description)
@@ -185,7 +309,7 @@ function CourseForm({
   )
   const [seatCap, setSeatCap] = useState(course.seatCap == null ? '' : String(course.seatCap))
   const [cutoff, setCutoff] = useState(course.enrollmentCutoff?.slice(0, 10) ?? '')
-  const [status, setStatus] = useState<CourseStatus>(course.status)
+  const [status, setStatus] = useState<CourseStatus>(editableCourseStatus(course.status))
   const [error, setError] = useState<string | null>(null)
   const client = useQueryClient()
 
@@ -213,15 +337,6 @@ function CourseForm({
       onChanged()
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not archive'),
-  })
-
-  const remove = useMutation({
-    mutationFn: () => api<{ ok: boolean }>({ method: 'DELETE', path: `/admin/courses/${course.id}` }),
-    onSuccess: () => {
-      toast.success('Draft deleted')
-      onDeleted()
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not delete'),
   })
 
   function bodyFor(nextStatus: CourseStatus): UpdateCourseBody {
@@ -333,11 +448,14 @@ function CourseForm({
         ) : null}
       </Can>
       <Can action="delete" subject="course">
-        {course.status === 'draft' && course.enrollmentCount === 0 ? (
-          <Button variant="destructive" disabled={remove.isPending} onClick={() => remove.mutate()}>
-            Delete draft
-          </Button>
-        ) : null}
+        <Button
+          type="button"
+          variant="destructive"
+          aria-label={`Delete ${course.name}`}
+          onClick={onRequestDelete}
+        >
+          Delete
+        </Button>
       </Can>
       <div>
         <p className="text-sm font-medium">Price history</p>
@@ -432,8 +550,83 @@ function CreateCourseSheet({
   )
 }
 
+function courseDeleteMessage(course: { name: string; enrollmentCount: number }) {
+  if (course.enrollmentCount > 0) {
+    return `${course.name} will be removed. People who paid will lose access, and their records for this course will be cleared. This cannot be undone.`
+  }
+  return `${course.name} will be removed. This cannot be undone.`
+}
+
+function clearAllCoursesMessage(courses: Array<{ enrollmentCount: number }>) {
+  if (courses.some((course) => course.enrollmentCount > 0)) {
+    return 'This deletes every course. People who paid will lose access, and those records will be cleared. This cannot be undone.'
+  }
+  return 'This deletes every course. This cannot be undone.'
+}
+
 function historyAmount(value: number | null) {
   return value == null ? 'No price set' : String(value)
+}
+
+function ConfirmDeleteDialog({
+  open,
+  title,
+  description,
+  confirmLabel,
+  pending,
+  requirePhrase,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean
+  title: string
+  description: string
+  confirmLabel: string
+  pending: boolean
+  requirePhrase?: string
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  const [typed, setTyped] = useState('')
+  useEffect(() => {
+    if (!open) setTyped('')
+  }, [open])
+  const phrase = requirePhrase?.trim().toLowerCase() ?? ''
+  const ready = !phrase || typed.trim().toLowerCase() === phrase
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        {phrase ? (
+          <label className="block space-y-1.5 text-sm">
+            <span>Type {requirePhrase} to confirm</span>
+            <Input
+              value={typed}
+              autoComplete="off"
+              onChange={(event) => setTyped(event.target.value)}
+            />
+          </label>
+        ) : null}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={!ready || pending}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

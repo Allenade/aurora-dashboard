@@ -1,4 +1,5 @@
 import { formatNaira, formatWat } from '@/lib/format'
+import { programLabel } from '@/lib/program'
 import type { ExportColumn } from '@/lib/table-export'
 
 export type AgeFilter = 'all' | 'minor' | 'adult' | 'unknown'
@@ -22,6 +23,7 @@ export type RegistrantRow = {
   lastName: string
   email: string | null
   phone: string | null
+  program?: string | null
   tracks: string[]
   isMinor: boolean | null
   dateOfBirth: string | null
@@ -73,19 +75,13 @@ export function filterRegistrants<
   })
 }
 
-export function trackChoices(
-  courses: Array<{ slug: string; name: string }>,
-  rows: Array<{ tracks: string[] }>,
-) {
+/** Course menu options from the courses API only. Enrollment slugs are not added. */
+export function courseOptions(courses: Array<{ slug: string; name: string }>) {
   const names = new Map<string, string>()
   for (const course of courses) {
-    if (!course.slug) continue
-    names.set(course.slug, course.name.trim() || course.slug)
-  }
-  for (const row of rows) {
-    for (const slug of row.tracks) {
-      if (slug && !names.has(slug)) names.set(slug, slug)
-    }
+    const slug = course.slug?.trim()
+    if (!slug || names.has(slug)) continue
+    names.set(slug, course.name?.trim() || slug)
   }
   return [...names.entries()].sort((left, right) =>
     left[1].localeCompare(right[1], 'en'),
@@ -102,6 +98,7 @@ export function registrantExportColumns(
     },
     { header: 'Email', value: (row) => row.email ?? '' },
     { header: 'Phone', value: (row) => row.phone ?? '' },
+    { header: 'Program', value: (row) => programLabel(row) },
     {
       header: 'Courses',
       value: (row) => row.tracks.map((slug) => trackName(slug)).join(', '),
