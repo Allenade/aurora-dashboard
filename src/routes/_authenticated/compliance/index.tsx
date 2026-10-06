@@ -8,6 +8,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { courseStatusLabel } from '@/lib/course-status'
 import { formatCount, formatNaira, formatPercent } from '@/lib/format'
 import { CORE_PROGRAM } from '@/lib/program'
 import { queryKeys } from '@/lib/query-keys.factory'
@@ -233,7 +234,7 @@ function ProgramFolder({
             <span>{seat.name}</span>
             <span className="font-mono text-xs text-muted-foreground">
               {seat.seatsTaken}
-              {seat.seatCap == null ? '' : ` / ${seat.seatCap}`} · {seat.status}
+              {seat.seatCap == null ? '' : ` / ${seat.seatCap}`} · {courseStatusLabel(seat.status)}
             </span>
           </div>
         ))}
