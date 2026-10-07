@@ -1,5 +1,12 @@
 export type CourseStatus = 'draft' | 'open' | 'closed' | 'archived'
 
+/** Optional picture and syllabus. Both stay empty until an admin adds them. */
+export type CourseSyllabus = {
+  url: string | null
+  filename: string | null
+  text: string | null
+}
+
 export type CoursePriceHistoryEntry = {
   id: string
   changedBy: string | null
@@ -32,6 +39,9 @@ export type AdminCourse = {
   enrollmentCount: number
   createdAt: string
   updatedAt: string
+  /** Public picture URL, or null when the course has no picture. */
+  imageUrl: string | null
+  syllabus: CourseSyllabus
 }
 
 export type AdminCourseDetail = AdminCourse & {
