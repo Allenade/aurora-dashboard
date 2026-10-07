@@ -10,6 +10,8 @@ import {
   mediaErrorMessage,
   readCourseMedia,
   syllabusFileError,
+  syllabusHtmlToLines,
+  syllabusLinesToHtml,
   syllabusTextBody,
   syllabusTextProblem,
   uploadCourseFile,
@@ -71,7 +73,9 @@ export function CourseMediaSections({
   const [picture, setPicture] = useState(initial.imageUrl)
   const [fileUrl, setFileUrl] = useState(initial.syllabus.url)
   const [filename, setFilename] = useState(initial.syllabus.filename)
-  const [topics, setTopics] = useState(initial.syllabus.text ?? '')
+  const [topics, setTopics] = useState(() =>
+    syllabusHtmlToLines(initial.syllabus.text ?? ''),
+  )
   const [pictureError, setPictureError] = useState<string | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [topicsError, setTopicsError] = useState<string | null>(null)
@@ -174,7 +178,7 @@ export function CourseMediaSections({
     },
     onSuccess: (next) => {
       if (next && typeof next === 'object' && 'syllabus' in next) {
-        setTopics(readCourseMedia(next).syllabus.text ?? '')
+        setTopics(syllabusHtmlToLines(readCourseMedia(next).syllabus.text ?? ''))
       }
       setTopicsError(null)
       toast.success('Topics saved')
@@ -336,10 +340,16 @@ export function CourseMediaSections({
           <Textarea
             value={topics}
             readOnly={!canUpdate}
-            placeholder="Week 1: Sensors and boards"
+            rows={8}
+            placeholder={'Week 1:\nSensors and boards\n\nWeek 2:\nMotors'}
             onChange={(event) => setTopics(event.target.value)}
           />
         </label>
+        <p className="text-xs text-muted-foreground">
+          One topic per line. A line that ends with : or starts with # is a heading. A
+          blank line starts a new group.
+        </p>
+        <SyllabusPreview source={topics} />
         {canUpdate ? (
           <p className="text-xs text-muted-foreground">
             Leave this empty and save to clear it.
@@ -358,6 +368,24 @@ export function CourseMediaSections({
         ) : null}
         {topicsError ? <p className="text-sm text-destructive">{topicsError}</p> : null}
       </section>
+    </div>
+  )
+}
+
+function SyllabusPreview({ source }: { source: string }) {
+  const html = syllabusLinesToHtml(source)
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">Preview</p>
+      {html ? (
+        <div
+          aria-label="Syllabus preview"
+          className="rounded-md border border-border px-3 py-2 text-sm [&_h2]:text-sm [&_h2]:font-medium [&_li]:mt-0.5 [&_ul+h2]:mt-3 [&_ul]:mt-1 [&_ul]:list-disc [&_ul]:pl-5"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      ) : (
+        <p className="text-xs text-muted-foreground">Type a line to see the list.</p>
+      )}
     </div>
   )
 }

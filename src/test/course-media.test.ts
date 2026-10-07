@@ -9,6 +9,8 @@ import {
   imageFileError,
   readCourseMedia,
   syllabusFileError,
+  syllabusHtmlToLines,
+  syllabusLinesToHtml,
   syllabusTextBody,
   syllabusTextProblem,
 } from '@/lib/course-media'
@@ -74,13 +76,52 @@ describe('course picture and syllabus checks', () => {
     ).toBe('The syllabus PDF must be 10 MB or smaller.')
   })
 
-  it('clears blank topics and refuses text over 50,000 characters', () => {
-    expect(syllabusTextBody('  ')).toEqual({ text: null })
-    expect(syllabusTextBody('Week 1: Sensors')).toEqual({ text: 'Week 1: Sensors' })
-    expect(syllabusTextBody('x'.repeat(COURSE_SYLLABUS_TEXT_MAX_CHARS))).toEqual({
-      text: 'x'.repeat(COURSE_SYLLABUS_TEXT_MAX_CHARS),
-    })
-    expect(syllabusTextBody('x'.repeat(COURSE_SYLLABUS_TEXT_MAX_CHARS + 1))).toEqual({
+  it('turns topics into headings and lists, and reads that html back as lines', () => {
+    const source = [
+      'Week 1:',
+      'Sensors & boards',
+      'GPIO <pins>',
+      '',
+      '# Week 2',
+      'Motors',
+      '',
+      'Loose note',
+    ].join('\n')
+    const html = [
+      '<h2>Week 1:</h2>',
+      '<ul><li>Sensors &amp; boards</li><li>GPIO &lt;pins&gt;</li></ul>',
+      '<h2>Week 2</h2>',
+      '<ul><li>Motors</li></ul>',
+      '<ul><li>Loose note</li></ul>',
+    ].join('')
+    expect(syllabusLinesToHtml(source)).toBe(html)
+    expect(syllabusHtmlToLines(html)).toBe(
+      [
+        'Week 1:',
+        'Sensors & boards',
+        'GPIO <pins>',
+        '',
+        '# Week 2',
+        'Motors',
+        '',
+        'Loose note',
+      ].join('\n'),
+    )
+    expect(
+      syllabusHtmlToLines(
+        '<h2>Week 1:</h2>\n<ul>\n<li>Sensors</li>\n<li>Boards</li>\n</ul>',
+      ),
+    ).toBe('Week 1:\nSensors\nBoards')
+    expect(syllabusHtmlToLines('Week 1:\nSensors')).toBe('Week 1:\nSensors')
+    expect(syllabusTextBody(source)).toEqual({ text: html })
+    expect(syllabusTextBody('  \n  ')).toEqual({ text: null })
+  })
+
+  it('refuses syllabus html over 50,000 characters', () => {
+    const overhead = '<ul><li></li></ul>'.length
+    const fit = 'x'.repeat(COURSE_SYLLABUS_TEXT_MAX_CHARS - overhead)
+    expect(syllabusTextBody(fit)).toEqual({ text: `<ul><li>${fit}</li></ul>` })
+    expect(syllabusTextBody(`${fit}x`)).toEqual({
       error: 'Week-by-week topics must be 50,000 characters or fewer.',
     })
   })

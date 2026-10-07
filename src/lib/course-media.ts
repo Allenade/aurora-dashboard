@@ -69,15 +69,131 @@ export function syllabusFileError(file: NamedFile) {
   return 'Use a PDF.'
 }
 
-/** Blank text clears the syllabus text. A long value is refused before it is sent. */
+type SyllabusGroup = {
+  heading: string | null
+  items: string[]
+}
+
+/** A line ending in ":" or starting with "#" is a heading. A blank line starts a new group. */
+export function syllabusLinesToHtml(source: string) {
+  const groups: SyllabusGroup[] = []
+  let current: SyllabusGroup = { heading: null, items: [] }
+  const flush = () => {
+    if (current.heading || current.items.length) groups.push(current)
+    current = { heading: null, items: [] }
+  }
+  for (const raw of source.split(/\r\n|\n|\r/)) {
+    const line = raw.trim()
+    if (!line) {
+      flush()
+      continue
+    }
+    const heading = syllabusHeading(line)
+    if (heading) {
+      if (current.heading || current.items.length) flush()
+      current.heading = heading
+      continue
+    }
+    current.items.push(line)
+  }
+  flush()
+  return groups
+    .map((group) => {
+      const parts: string[] = []
+      if (group.heading) parts.push(`<h2>${escapeHtml(group.heading)}</h2>`)
+      if (group.items.length) {
+        const items = group.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')
+        parts.push(`<ul>${items}</ul>`)
+      }
+      return parts.join('')
+    })
+    .join('')
+}
+
+/** Stored syllabus HTML becomes one editable line per heading or topic. */
+export function syllabusHtmlToLines(value: string) {
+  const source = value.replace(/\r\n/g, '\n')
+  if (!/<\s*(?:h[2-4]|ul|ol|li|p|br|div)\b/i.test(source)) return source.trim()
+  const lines: string[] = []
+  let last: 'none' | 'heading' | 'item' = 'none'
+  let listOpen = false
+  const blocks =
+    /<h([2-4])\b[^>]*>([\s\S]*?)<\/h\1>|<li\b[^>]*>([\s\S]*?)<\/li>|<p\b[^>]*>([\s\S]*?)<\/p>|<br\s*\/?>|<\/ul>|<\/ol>|<ul\b[^>]*>|<ol\b[^>]*>/gi
+  for (const match of source.matchAll(blocks)) {
+    const tag = match[0]
+    if (/^<ul\b/i.test(tag) || /^<ol\b/i.test(tag)) {
+      if (!listOpen && last === 'item') lines.push('')
+      listOpen = true
+      continue
+    }
+    if (/^<\/ul/i.test(tag) || /^<\/ol/i.test(tag)) {
+      listOpen = false
+      continue
+    }
+    if (/^<br/i.test(tag)) {
+      if (last !== 'none') lines.push('')
+      last = 'none'
+      listOpen = false
+      continue
+    }
+    const text = visibleHtmlText(match[2] ?? match[3] ?? match[4] ?? '')
+    if (!text) continue
+    if (/^<h[2-4]/i.test(tag)) {
+      if (last === 'item' || last === 'heading') lines.push('')
+      lines.push(text.endsWith(':') || text.startsWith('#') ? text : `# ${text}`)
+      last = 'heading'
+      listOpen = false
+      continue
+    }
+    lines.push(text)
+    last = 'item'
+  }
+  const parsed = lines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  if (parsed) return parsed
+  return visibleHtmlText(source)
+}
+
+/** Blank text clears the syllabus text. Lines are stored as headings and lists. */
 export function syllabusTextBody(
   text: string,
 ): { text: string | null } | { error: string } {
-  if (text.trim().length > COURSE_SYLLABUS_TEXT_MAX_CHARS) {
+  const html = syllabusLinesToHtml(text)
+  if (!html) return { text: null }
+  if (html.length > COURSE_SYLLABUS_TEXT_MAX_CHARS) {
     return { error: 'Week-by-week topics must be 50,000 characters or fewer.' }
   }
-  if (!text.trim()) return { text: null }
-  return { text }
+  return { text: html }
+}
+
+function syllabusHeading(line: string) {
+  if (line.startsWith('#')) {
+    const text = line.replace(/^#+\s*/, '').trim()
+    return text || null
+  }
+  if (line.endsWith(':')) return line
+  return null
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function visibleHtmlText(value: string) {
+  const stripped = value.replace(/<[^>]+>/g, ' ')
+  return decodeHtml(stripped).replace(/\s+/g, ' ').trim()
+}
+
+function decodeHtml(value: string) {
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&amp;/gi, '&')
 }
 
 export function courseUploadErrorMessage(

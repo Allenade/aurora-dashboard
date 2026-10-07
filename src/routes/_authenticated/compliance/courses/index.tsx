@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { allows, isSuperAdmin } from '@/lib/ability'
 import { courseStatusLabel, editableCourseStatus } from '@/lib/course-status'
 import {
@@ -410,8 +411,9 @@ function CourseForm({
         <Input value={name} onChange={(event) => setName(event.target.value)} />
       </Field>
       <Field label="Description">
-        <Input
+        <Textarea
           value={description}
+          rows={4}
           onChange={(event) => setDescription(event.target.value)}
         />
       </Field>

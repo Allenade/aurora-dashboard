@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AbilityProvider } from '@/components/ability'
@@ -312,7 +312,9 @@ describe('courses page', () => {
       type: 'image/jpeg',
     })
     await user.upload(within(dialog).getByLabelText('Course picture file'), big)
-    expect(within(dialog).getByText('Pictures must be 5 MB or smaller.')).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('Pictures must be 5 MB or smaller.'),
+    ).toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalled()
 
     const jpeg = new File([new Uint8Array([1, 2, 3])], 'robotics.jpg', {
@@ -359,15 +361,28 @@ describe('courses page', () => {
       path: '/admin/courses/course-open/syllabus/file',
     })
 
+    expect(within(dialog).getByRole('textbox', { name: 'Description' }).tagName).toBe(
+      'TEXTAREA',
+    )
     const topics = within(dialog).getByRole('textbox', { name: 'Week-by-week topics' })
-    await user.type(topics, 'Week 1: Sensors')
+    expect(topics.tagName).toBe('TEXTAREA')
+    fireEvent.change(topics, { target: { value: 'Week 1:\nSensors\nBoards' } })
+    expect(topics).toHaveValue('Week 1:\nSensors\nBoards')
+    const preview = within(dialog).getByLabelText('Syllabus preview')
+    expect(within(preview).getByRole('heading', { name: 'Week 1:' })).toBeInTheDocument()
+    expect(within(preview).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Sensors',
+      'Boards',
+    ])
     await user.click(
       within(dialog).getByRole('button', { name: 'Save week-by-week topics' }),
     )
     expect(api).toHaveBeenCalledWith({
       method: 'PATCH',
       path: '/admin/courses/course-open/syllabus/text',
-      body: { text: 'Week 1: Sensors' },
+      body: {
+        text: '<h2>Week 1:</h2><ul><li>Sensors</li><li>Boards</li></ul>',
+      },
     })
 
     await user.clear(topics)
@@ -379,6 +394,43 @@ describe('courses page', () => {
       path: '/admin/courses/course-open/syllabus/text',
       body: { text: null },
     })
+  })
+
+  it('loads saved syllabus html as one topic per line', async () => {
+    const user = userEvent.setup()
+    api.mockImplementation(async (request: { method: string; path: string }) => {
+      if (request.method === 'GET' && request.path === '/admin/courses')
+        return [openCourse]
+      if (
+        request.method === 'GET' &&
+        request.path === `/admin/courses/${openCourse.id}`
+      ) {
+        return {
+          ...detail(openCourse),
+          description: 'Line one\n- Boards\n- Sensors',
+          syllabus: {
+            url: null,
+            filename: null,
+            text: '<h2>Week 1:</h2><ul><li>Sensors</li><li>Boards</li></ul><ul><li>Show and tell</li></ul>',
+          },
+        }
+      }
+      return { ok: true }
+    })
+    renderCourses('super_admin')
+    await user.click(await screen.findByRole('cell', { name: 'Robotics' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Robotics' })
+    expect(within(dialog).getByRole('textbox', { name: 'Description' })).toHaveValue(
+      'Line one\n- Boards\n- Sensors',
+    )
+    expect(
+      within(dialog).getByRole('textbox', { name: 'Week-by-week topics' }),
+    ).toHaveValue('Week 1:\nSensors\nBoards\n\nShow and tell')
+    const preview = within(dialog).getByLabelText('Syllabus preview')
+    expect(
+      within(preview).getByRole('heading', { name: 'Week 1:' }),
+    ).toBeInTheDocument()
+    expect(within(preview).getAllByRole('list')).toHaveLength(2)
   })
 
   it('adds a picture and a syllabus only after the course is created', async () => {
