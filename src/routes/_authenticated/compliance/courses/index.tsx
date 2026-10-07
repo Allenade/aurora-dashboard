@@ -3,6 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Can, useAbility, useSessionUser } from '@/components/ability'
+import {
+  CourseMediaLater,
+  CourseMediaSections,
+  CourseThumb,
+} from '@/components/course-media'
 import { DataTable, type Column } from '@/components/data-tables/data-table'
 import { EmptyState, PageHeader, QueryBody } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -18,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { allows, isSuperAdmin } from '@/lib/ability'
 import { courseStatusLabel, editableCourseStatus } from '@/lib/course-status'
 import {
@@ -73,14 +79,17 @@ function CoursesPage() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })
     },
     onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not delete the course'),
+      toast.error(
+        err instanceof ApiError ? err.message : 'Could not delete the course',
+      ),
   })
 
   const clearAll = useMutation({
-    mutationFn: () => api<{ ok?: boolean; deleted?: number } | null>({
-      method: 'POST',
-      path: CLEAR_ALL_COURSES_PATH,
-    }),
+    mutationFn: () =>
+      api<{ ok?: boolean; deleted?: number } | null>({
+        method: 'POST',
+        path: CLEAR_ALL_COURSES_PATH,
+      }),
     onSuccess: async () => {
       toast.success('All courses deleted')
       setConfirmClear(false)
@@ -88,11 +97,22 @@ function CoursesPage() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })
     },
     onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not delete the courses'),
+      toast.error(
+        err instanceof ApiError ? err.message : 'Could not delete the courses',
+      ),
   })
 
   const columns: Column<AdminCourse>[] = [
-    { accessorKey: 'name', header: 'Course' },
+    {
+      accessorKey: 'name',
+      header: 'Course',
+      cell: ({ row }) => (
+        <span className="inline-flex items-center gap-2">
+          <CourseThumb url={row.original.imageUrl} />
+          <span>{row.original.name}</span>
+        </span>
+      ),
+    },
     {
       accessorKey: 'status',
       header: 'Status',
@@ -105,9 +125,7 @@ function CoursesPage() {
         const label = formatCoursePrice(row.original)
         const unset = !coursePriceSet(row.original)
         return (
-          <span className={unset ? 'font-medium text-warn' : 'font-mono'}>
-            {label}
-          </span>
+          <span className={unset ? 'font-medium text-warn' : 'font-mono'}>{label}</span>
         )
       },
     },
@@ -117,7 +135,9 @@ function CoursesPage() {
       cell: ({ row }) => (
         <span className="font-mono text-xs">
           {formatCount(row.original.seatsTaken)}
-          {row.original.seatCap == null ? ' · open' : ` / ${formatCount(row.original.seatCap)}`}
+          {row.original.seatCap == null
+            ? ' · open'
+            : ` / ${formatCount(row.original.seatCap)}`}
         </span>
       ),
     },
@@ -125,13 +145,17 @@ function CoursesPage() {
       id: 'cutoff',
       header: 'Cutoff',
       cell: ({ row }) => (
-        <span className="font-mono text-xs">{formatWatDate(row.original.enrollmentCutoff)}</span>
+        <span className="font-mono text-xs">
+          {formatWatDate(row.original.enrollmentCutoff)}
+        </span>
       ),
     },
     {
       id: 'enrollments',
       header: 'Enrollments',
-      cell: ({ row }) => <span className="font-mono">{row.original.enrollmentCount}</span>,
+      cell: ({ row }) => (
+        <span className="font-mono">{row.original.enrollmentCount}</span>
+      ),
     },
     ...(canDelete
       ? [
@@ -191,17 +215,26 @@ function CoursesPage() {
             <DataTable
               columns={columns}
               data={courses.data}
-              onRow={canUpdate || allows(ability, 'read', 'course') ? (row) => setSelected(row.id) : undefined}
+              onRow={
+                canUpdate || allows(ability, 'read', 'course')
+                  ? (row) => setSelected(row.id)
+                  : undefined
+              }
             />
           ) : (
-            <EmptyState title="No courses yet" body="Create a draft. Set a price or mark it free before you open it." />
+            <EmptyState
+              title="No courses yet"
+              body="Create a draft. Set a price or mark it free before you open it."
+            />
           )
         ) : null}
       </QueryBody>
       <CourseDrawer
         id={selected}
         onClose={() => setSelected(null)}
-        onChanged={() => void queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })}
+        onChanged={() =>
+          void queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })
+        }
         onRequestDelete={(course) =>
           setPendingDelete({
             id: course.id,
@@ -241,7 +274,6 @@ function CoursesPage() {
         open={creating}
         onClose={() => setCreating(false)}
         onCreated={() => {
-          setCreating(false)
           void queryClient.invalidateQueries({ queryKey: queryKeys.courses.all })
         }}
       />
@@ -263,7 +295,8 @@ function CourseDrawer({
   const detail = useQuery({
     queryKey: queryKeys.courses.detail(id ?? 'none'),
     enabled: Boolean(id),
-    queryFn: () => api<AdminCourseDetail>({ method: 'GET', path: `/admin/courses/${id}` }),
+    queryFn: () =>
+      api<AdminCourseDetail>({ method: 'GET', path: `/admin/courses/${id}` }),
   })
   return (
     <Sheet open={Boolean(id)} onOpenChange={(open) => !open && onClose()}>
@@ -307,9 +340,13 @@ function CourseForm({
   const [price, setPrice] = useState(
     course.isFree || !coursePriceSet(course) ? '' : String(course.price),
   )
-  const [seatCap, setSeatCap] = useState(course.seatCap == null ? '' : String(course.seatCap))
+  const [seatCap, setSeatCap] = useState(
+    course.seatCap == null ? '' : String(course.seatCap),
+  )
   const [cutoff, setCutoff] = useState(course.enrollmentCutoff?.slice(0, 10) ?? '')
-  const [status, setStatus] = useState<CourseStatus>(editableCourseStatus(course.status))
+  const [status, setStatus] = useState<CourseStatus>(
+    editableCourseStatus(course.status),
+  )
   const [error, setError] = useState<string | null>(null)
   const client = useQueryClient()
 
@@ -323,7 +360,8 @@ function CourseForm({
       onChanged()
     },
     onError: (err) => {
-      const message = err instanceof ApiError ? err.message : 'Could not save the course'
+      const message =
+        err instanceof ApiError ? err.message : 'Could not save the course'
       setError(message)
       toast.error(message)
     },
@@ -336,7 +374,8 @@ function CourseForm({
       toast.success('Course archived')
       onChanged()
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not archive'),
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : 'Could not archive'),
   })
 
   function bodyFor(nextStatus: CourseStatus): UpdateCourseBody {
@@ -351,11 +390,15 @@ function CourseForm({
     }
   }
 
-  const priced = isFree || (price.trim() !== '' && Number(price) > 0) || coursePriceSet({
-    price: price.trim() ? Number(price) : course.price,
-    isFree,
-  })
-  const showUnset = !isFree && !(price.trim() ? Number(price) > 0 : coursePriceSet(course))
+  const priced =
+    isFree ||
+    (price.trim() !== '' && Number(price) > 0) ||
+    coursePriceSet({
+      price: price.trim() ? Number(price) : course.price,
+      isFree,
+    })
+  const showUnset =
+    !isFree && !(price.trim() ? Number(price) > 0 : coursePriceSet(course))
 
   return (
     <div className="space-y-4 px-4 pb-6">
@@ -368,12 +411,25 @@ function CourseForm({
         <Input value={name} onChange={(event) => setName(event.target.value)} />
       </Field>
       <Field label="Description">
-        <Input value={description} onChange={(event) => setDescription(event.target.value)} />
+        <Textarea
+          value={description}
+          rows={4}
+          onChange={(event) => setDescription(event.target.value)}
+        />
       </Field>
+      <CourseMediaSections
+        courseId={course.id}
+        courseName={course.name}
+        imageUrl={course.imageUrl}
+        syllabus={course.syllabus}
+        onChanged={onChanged}
+      />
       <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
         <div>
           <p className="text-sm">Free</p>
-          <p className="text-xs text-muted-foreground">A free course is stored with a price of 0.</p>
+          <p className="text-xs text-muted-foreground">
+            A free course is stored with a price of 0.
+          </p>
         </div>
         <Switch checked={isFree} onCheckedChange={setIsFree} />
       </div>
@@ -403,7 +459,11 @@ function CourseForm({
         />
       </Field>
       <Field label="Enrollment cutoff">
-        <Input type="date" value={cutoff} onChange={(event) => setCutoff(event.target.value)} />
+        <Input
+          type="date"
+          value={cutoff}
+          onChange={(event) => setCutoff(event.target.value)}
+        />
       </Field>
       <Field label="Status">
         <select
@@ -442,7 +502,11 @@ function CourseForm({
       </Can>
       <Can action="update" subject="course">
         {course.enrollmentCount > 0 ? (
-          <Button variant="outline" disabled={archive.isPending} onClick={() => archive.mutate()}>
+          <Button
+            variant="outline"
+            disabled={archive.isPending}
+            onClick={() => archive.mutate()}
+          >
             Archive
           </Button>
         ) : null}
@@ -463,12 +527,15 @@ function CourseForm({
           <ul className="mt-2 space-y-1 text-xs">
             {course.priceHistory.map((entry) => (
               <li key={entry.id} className="font-mono text-muted-foreground">
-                {historyAmount(entry.oldPrice)} → {historyAmount(entry.newPrice)} {entry.newCurrency}
+                {historyAmount(entry.oldPrice)} → {historyAmount(entry.newPrice)}{' '}
+                {entry.newCurrency}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="mt-1 text-sm text-muted-foreground">No price has been recorded.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            No price has been recorded.
+          </p>
         )}
       </div>
     </div>
@@ -489,62 +556,104 @@ function CreateCourseSheet({
   const [isFree, setIsFree] = useState(false)
   const [price, setPrice] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [created, setCreated] = useState<AdminCourse | null>(null)
+  useEffect(() => {
+    if (open) return
+    setSlug('')
+    setName('')
+    setIsFree(false)
+    setPrice('')
+    setError(null)
+    setCreated(null)
+  }, [open])
   const create = useMutation({
     mutationFn: (body: UpsertCourseBody) =>
       api<AdminCourse>({ method: 'POST', path: '/admin/courses', body }),
-    onSuccess: () => {
+    onSuccess: (course) => {
+      if (!course?.id) {
+        setError('The course was created, but the server did not return it.')
+        onCreated()
+        return
+      }
       toast.success('Draft created')
+      setCreated(course)
       onCreated()
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not create the course'),
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not create the course'),
   })
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent className="bg-card sm:max-w-md">
+      <SheetContent className="w-full overflow-y-auto bg-card sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>New course</SheetTitle>
+          <SheetTitle>{created?.name || 'New course'}</SheetTitle>
         </SheetHeader>
-        <form
-          className="space-y-3 px-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const body: UpsertCourseBody = {
-              slug,
-              name,
-              status: 'draft',
-              isFree,
-              price: isFree ? 0 : price.trim() ? Number(price) : null,
-            }
-            create.mutate(body)
-          }}
-        >
-          <Field label="Slug">
-            <Input value={slug} onChange={(event) => setSlug(event.target.value)} required />
-          </Field>
-          <Field label="Name">
-            <Input value={name} onChange={(event) => setName(event.target.value)} required />
-          </Field>
-          <div className="flex items-center justify-between">
-            <Label>Free</Label>
-            <Switch checked={isFree} onCheckedChange={setIsFree} />
-          </div>
-          <Field label="Price">
-            <Input
-              placeholder="No price set"
-              disabled={isFree}
-              value={price}
-              onChange={(event) => setPrice(event.target.value.replace(/[^\d]/g, ''))}
+        {created ? (
+          <div className="space-y-3 px-4 pb-6">
+            <p className="text-sm text-muted-foreground">
+              Draft created. You can add a picture and a syllabus now.
+            </p>
+            <CourseMediaSections
+              courseId={created.id}
+              courseName={created.name}
+              imageUrl={created.imageUrl}
+              syllabus={created.syllabus}
+              onChanged={onCreated}
             />
-          </Field>
-          <p className="text-xs text-muted-foreground">
-            Leave the price empty for an unpriced draft. Opening a paid course still needs a price or Free.
-          </p>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <Button type="submit" disabled={create.isPending}>
-            Create draft
-          </Button>
-        </form>
+          </div>
+        ) : (
+          <form
+            className="space-y-3 px-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const body: UpsertCourseBody = {
+                slug,
+                name,
+                status: 'draft',
+                isFree,
+                price: isFree ? 0 : price.trim() ? Number(price) : null,
+              }
+              create.mutate(body)
+            }}
+          >
+            <Field label="Slug">
+              <Input
+                value={slug}
+                onChange={(event) => setSlug(event.target.value)}
+                required
+              />
+            </Field>
+            <Field label="Name">
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+            </Field>
+            <div className="flex items-center justify-between">
+              <Label>Free</Label>
+              <Switch checked={isFree} onCheckedChange={setIsFree} />
+            </div>
+            <Field label="Price">
+              <Input
+                placeholder="No price set"
+                disabled={isFree}
+                value={price}
+                onChange={(event) => setPrice(event.target.value.replace(/[^\d]/g, ''))}
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              Leave the price empty for an unpriced draft. Opening a paid course still
+              needs a price or Free.
+            </p>
+            <CourseMediaLater />
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            <Button type="submit" disabled={create.isPending}>
+              Create draft
+            </Button>
+          </form>
+        )}
       </SheetContent>
     </Sheet>
   )
