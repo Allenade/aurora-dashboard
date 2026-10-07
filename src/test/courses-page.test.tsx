@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AbilityProvider } from '@/components/ability'
 import { sessionUser, type AppRole } from '@/lib/roles'
 import type {
@@ -39,6 +39,8 @@ const openCourse: AdminCourse = {
   enrollmentCount: 4,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+  imageUrl: null,
+  syllabus: { url: null, filename: null, text: null },
 }
 
 const closedCourse: AdminCourse = {
@@ -87,6 +89,10 @@ function renderCourses(role: AppRole) {
 }
 
 describe('courses page', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   beforeEach(() => {
     api.mockReset()
     api.mockImplementation(async (request: { method: string; path: string }) => {
@@ -215,4 +221,231 @@ describe('courses page', () => {
     ).toBeInTheDocument()
     expect(within(dialog).queryByText(/lose access/i)).not.toBeInTheDocument()
   })
+
+  it('shows a small picture beside a course that has one', async () => {
+    api.mockImplementation(async (request: { method: string; path: string }) => {
+      if (request.method === 'GET' && request.path === '/admin/courses') {
+        return [
+          { ...openCourse, imageUrl: 'https://cdn.example/robotics.jpg' },
+          closedCourse,
+        ]
+      }
+      return { ok: true }
+    })
+    renderCourses('super_admin')
+    const robotics = await screen.findByRole('cell', { name: 'Robotics' })
+    expect(robotics.querySelector('img')).toHaveAttribute(
+      'src',
+      'https://cdn.example/robotics.jpg',
+    )
+    expect(screen.getByRole('cell', { name: 'Vision' }).querySelector('img')).toBeNull()
+  })
+
+  it('uploads, replaces, and removes a course picture', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const file = init?.body instanceof FormData ? init.body.get('file') : null
+      const name = file instanceof File ? file.name : 'robotics.jpg'
+      return jsonResponse(200, {
+        ...detail(openCourse),
+        imageUrl: `https://cdn.example/${name}`,
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderCourses('super_admin')
+    await user.click(await screen.findByRole('cell', { name: 'Robotics' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Robotics' })
+    expect(
+      within(dialog).getByRole('heading', { name: 'Course picture' }),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText('No picture yet.')).toBeInTheDocument()
+
+    const first = new File([new Uint8Array([1, 2, 3])], 'robotics.jpg', {
+      type: 'image/jpeg',
+    })
+    await user.upload(within(dialog).getByLabelText('Course picture file'), first)
+    expect(
+      await within(dialog).findByRole('img', { name: 'Robotics picture' }),
+    ).toHaveAttribute('src', 'https://cdn.example/robotics.jpg')
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/bff/admin/courses/course-open/image',
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    )
+    const sent = fetchMock.mock.calls[0]?.[1]?.body
+    expect(sent).toBeInstanceOf(FormData)
+    expect((sent as FormData).get('file')).toBeInstanceOf(File)
+
+    const replacement = new File([new Uint8Array([4])], 'cover.png', {
+      type: 'image/png',
+    })
+    await user.upload(within(dialog).getByLabelText('Course picture file'), replacement)
+    expect(
+      await within(dialog).findByRole('img', { name: 'Robotics picture' }),
+    ).toHaveAttribute('src', 'https://cdn.example/cover.png')
+    expect(within(dialog).getByRole('button', { name: 'Replace' })).toBeInTheDocument()
+
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Remove course picture' }),
+    )
+    expect(api).toHaveBeenCalledWith({
+      method: 'DELETE',
+      path: '/admin/courses/course-open/image',
+    })
+    expect(await within(dialog).findByText('No picture yet.')).toBeInTheDocument()
+  })
+
+  it('explains when picture storage is not set up and refuses a bad file', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(503, {
+        statusCode: 503,
+        message: 'Cloudflare R2 storage is not configured.',
+        error: 'Service Unavailable',
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    renderCourses('super_admin')
+    await user.click(await screen.findByRole('cell', { name: 'Robotics' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Robotics' })
+
+    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.jpg', {
+      type: 'image/jpeg',
+    })
+    await user.upload(within(dialog).getByLabelText('Course picture file'), big)
+    expect(within(dialog).getByText('Pictures must be 5 MB or smaller.')).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    const jpeg = new File([new Uint8Array([1, 2, 3])], 'robotics.jpg', {
+      type: 'image/jpeg',
+    })
+    await user.upload(within(dialog).getByLabelText('Course picture file'), jpeg)
+    expect(
+      await within(dialog).findByText("Image upload isn't set up yet"),
+    ).toBeInTheDocument()
+  })
+
+  it('uploads a syllabus PDF, shows its file name, and saves week-by-week topics', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(200, {
+        ...detail(openCourse),
+        syllabus: {
+          url: 'https://cdn.example/week.pdf',
+          filename: 'Week plan.pdf',
+          text: null,
+        },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    renderCourses('super_admin')
+    await user.click(await screen.findByRole('cell', { name: 'Robotics' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Robotics' })
+    expect(within(dialog).getByText('No syllabus file yet.')).toBeInTheDocument()
+
+    const pdf = new File(['%PDF-1.4'], 'Week plan.pdf', { type: 'application/pdf' })
+    await user.upload(within(dialog).getByLabelText('Syllabus PDF file'), pdf)
+    const link = await within(dialog).findByRole('link', { name: 'Week plan.pdf' })
+    expect(link).toHaveAttribute('href', 'https://cdn.example/week.pdf')
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/bff/admin/courses/course-open/syllabus',
+      expect.objectContaining({ method: 'POST' }),
+    )
+
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Remove syllabus file' }),
+    )
+    expect(api).toHaveBeenCalledWith({
+      method: 'DELETE',
+      path: '/admin/courses/course-open/syllabus/file',
+    })
+
+    const topics = within(dialog).getByRole('textbox', { name: 'Week-by-week topics' })
+    await user.type(topics, 'Week 1: Sensors')
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Save week-by-week topics' }),
+    )
+    expect(api).toHaveBeenCalledWith({
+      method: 'PATCH',
+      path: '/admin/courses/course-open/syllabus/text',
+      body: { text: 'Week 1: Sensors' },
+    })
+
+    await user.clear(topics)
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Save week-by-week topics' }),
+    )
+    expect(api).toHaveBeenCalledWith({
+      method: 'PATCH',
+      path: '/admin/courses/course-open/syllabus/text',
+      body: { text: null },
+    })
+  })
+
+  it('adds a picture and a syllabus only after the course is created', async () => {
+    const user = userEvent.setup()
+    const created = {
+      ...emptyCourse,
+      id: 'course-new',
+      slug: 'new-lab',
+      name: 'New lab',
+    }
+    api.mockImplementation(async (request: { method: string; path: string }) => {
+      if (request.method === 'GET' && request.path === '/admin/courses') return []
+      if (request.method === 'POST' && request.path === '/admin/courses') return created
+      return { ok: true }
+    })
+    renderCourses('super_admin')
+    await user.click(await screen.findByRole('button', { name: 'New course' }))
+    const sheet = await screen.findByRole('dialog', { name: 'New course' })
+    expect(
+      within(sheet).getByRole('heading', { name: 'Course picture' }),
+    ).toBeInTheDocument()
+    expect(within(sheet).getByRole('heading', { name: 'Syllabus' })).toBeInTheDocument()
+    expect(
+      within(sheet).getByText('You can add a picture after the course is created.'),
+    ).toBeInTheDocument()
+    expect(
+      within(sheet).queryByLabelText('Course picture file'),
+    ).not.toBeInTheDocument()
+
+    await user.type(within(sheet).getByLabelText('Slug'), 'new-lab')
+    await user.type(within(sheet).getByLabelText('Name'), 'New lab')
+    await user.click(within(sheet).getByRole('button', { name: 'Create draft' }))
+
+    const ready = await screen.findByRole('dialog', { name: 'New lab' })
+    expect(within(ready).getByLabelText('Course picture file')).toBeInTheDocument()
+    expect(within(ready).getByLabelText('Syllabus PDF file')).toBeInTheDocument()
+    expect(
+      within(ready).queryByText(/after the course is created/i),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the picture and syllabus to a manager without upload controls', async () => {
+    const user = userEvent.setup()
+    renderCourses('compliance_manager')
+    await user.click(await screen.findByRole('cell', { name: 'Robotics' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Robotics' })
+    expect(
+      within(dialog).getByRole('heading', { name: 'Course picture' }),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText('No picture yet.')).toBeInTheDocument()
+    expect(within(dialog).getByText('No syllabus file yet.')).toBeInTheDocument()
+    expect(
+      within(dialog).queryByLabelText('Course picture file'),
+    ).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('button', { name: 'Upload PDF' }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('button', { name: 'Save week-by-week topics' }),
+    ).not.toBeInTheDocument()
+  })
 })
+
+function jsonResponse(status: number, body: unknown) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  }
+}
