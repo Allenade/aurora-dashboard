@@ -94,6 +94,32 @@ select {
   font-family: inherit;
 }
 
+/*
+ * Native option lists use a light popup even when the page is dark, and they
+ * inherit the light page text, so only the highlighted row stays readable.
+ * Paint every option to match the theme, and keep the highlighted row in the
+ * lime selection colors so it stays distinct.
+ */
+select,
+select option,
+select optgroup {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+}
+
+select option:hover,
+select option:focus,
+select option:active,
+select option:checked {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
 ::selection {
   background: #c6ff00;
   color: #141414;
