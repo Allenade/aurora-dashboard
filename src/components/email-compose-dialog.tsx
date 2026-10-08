@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input'
 import {
   addChip,
+  addPeopleLabel,
   allPaidChip,
   audienceLabel,
   chipsFromSelectors,
@@ -36,6 +37,8 @@ import { queryKeys } from '@/lib/query-keys.factory'
 import { ApiError, api } from '@/queries/api'
 import type { AdminCourse } from '@/queries/courses/interfaces/course.dto'
 import type {
+  CourseStudent,
+  CourseStudents,
   EmailDraft,
   RecipientPreview,
   SaveEmailDraftBody,
@@ -586,6 +589,7 @@ function AddMenu({
   const [toAge, setToAge] = useState('')
   const [ageNote, setAgeNote] = useState<string | null>(null)
   const [studentQuery, setStudentQuery] = useState('')
+  const [courseId, setCourseId] = useState<string | null>(null)
   const debouncedStudent = useDebounced(studentQuery, 300)
   const live = courses.filter(
     (course) => isLiveCourseStatus(course.status) && isUuid(course.id),
@@ -618,7 +622,9 @@ function AddMenu({
   function place() {
     const rect = buttonRef.current?.getBoundingClientRect()
     if (!rect) return
-    const width = 300
+    const picker = sub === 'course' && courseId != null
+    const panels = 1 + (sub ? 1 : 0) + (picker ? 1 : 0)
+    const width = panels * 300
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))
     setBox({ top: rect.bottom + 6, left })
   }
@@ -632,11 +638,13 @@ function AddMenu({
         return
       setOpen(false)
       setSub(null)
+      setCourseId(null)
     }
     function onKey(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setOpen(false)
         setSub(null)
+        setCourseId(null)
       }
     }
     window.addEventListener('resize', place)
@@ -649,17 +657,32 @@ function AddMenu({
       document.removeEventListener('mousedown', onPointer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, sub, courseId])
 
-  const beside = box ? box.left + 300 + 280 < window.innerWidth : false
+  const pickerOpen = sub === 'course' && courseId != null
+  const beside = box
+    ? box.left + 280 + (sub ? 288 : 0) + (pickerOpen ? 336 : 0) < window.innerWidth
+    : false
   const paidCount = counts.data?.allPaid
   const foundStudents = Array.isArray(students.data?.items) ? students.data.items : []
 
-  function choose(chip: Chip) {
-    onAdd(chip)
+  function closeMenu() {
     setOpen(false)
     setSub(null)
+    setCourseId(null)
   }
+
+  function choose(chip: Chip) {
+    onAdd(chip)
+    closeMenu()
+  }
+
+  function openSub(next: 'course' | 'age' | 'student') {
+    setSub(next)
+    if (next !== 'course') setCourseId(null)
+  }
+
+  const pickedCourse = live.find((course) => course.id === courseId) ?? null
 
   const menu =
     open && box && typeof document !== 'undefined'
@@ -669,30 +692,30 @@ function AddMenu({
             className="fixed z-[80] flex items-start gap-1"
             style={{ top: box.top, left: box.left }}
           >
-            {(beside || sub == null) && (
+            {(beside || (sub == null && !pickerOpen)) && (
               <div className="w-[280px] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg">
                 <MenuButton onClick={() => choose(allPaidChip())}>
                   👥 All paid students
                   {paidCount == null ? '' : ` (${paidCount.toLocaleString('en-NG')})`}
                 </MenuButton>
-                <MenuButton active={sub === 'course'} onClick={() => setSub('course')}>
+                <MenuButton active={sub === 'course'} onClick={() => openSub('course')}>
                   <span className="flex-1">📘 Students in a course</span>
                   <span aria-hidden>▸</span>
                 </MenuButton>
-                <MenuButton active={sub === 'age'} onClick={() => setSub('age')}>
+                <MenuButton active={sub === 'age'} onClick={() => openSub('age')}>
                   <span className="flex-1">🎂 An age group</span>
                   <span aria-hidden>▸</span>
                 </MenuButton>
                 <MenuButton
                   active={sub === 'student'}
-                  onClick={() => setSub('student')}
+                  onClick={() => openSub('student')}
                 >
                   <span className="flex-1">👤 One student…</span>
                   <span aria-hidden>▸</span>
                 </MenuButton>
               </div>
             )}
-            {sub ? (
+            {sub && (beside || !pickerOpen) ? (
               <div className="max-h-80 w-[280px] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg">
                 {!beside ? (
                   <MenuButton onClick={() => setSub(null)}>← Back</MenuButton>
@@ -708,7 +731,11 @@ function AddMenu({
                       return (
                         <MenuButton
                           key={course.id}
-                          onClick={() => choose(courseChip(course.id, course.name))}
+                          active={course.id === courseId}
+                          onClick={() => {
+                            setCourseId(course.id)
+                            setSub('course')
+                          }}
                         >
                           <span className="min-w-0 flex-1 truncate">{course.name}</span>
                           <span className="text-muted-foreground">
@@ -820,6 +847,24 @@ function AddMenu({
                 ) : null}
               </div>
             ) : null}
+            {pickerOpen && pickedCourse ? (
+              <CoursePeople
+                key={pickedCourse.id}
+                course={pickedCourse}
+                showBack={!beside}
+                onBack={() => setCourseId(null)}
+                onAddAll={(count) => {
+                  onAdd(courseChip(pickedCourse.id, pickedCourse.name, count))
+                  closeMenu()
+                }}
+                onAddPeople={(people) => {
+                  for (const person of people) {
+                    onAdd(studentChip(person.enrollmentId, person.name))
+                  }
+                  closeMenu()
+                }}
+              />
+            ) : null}
           </div>,
           document.body,
         )
@@ -836,6 +881,7 @@ function AddMenu({
         onClick={() => {
           setOpen((current) => !current)
           setSub(null)
+          setCourseId(null)
           place()
         }}
       >
@@ -843,6 +889,141 @@ function AddMenu({
       </button>
       {menu}
     </>
+  )
+}
+
+function CoursePeople({
+  course,
+  showBack,
+  onBack,
+  onAddAll,
+  onAddPeople,
+}: {
+  course: AdminCourse
+  showBack: boolean
+  onBack: () => void
+  onAddAll: (count: number) => void
+  onAddPeople: (people: CourseStudent[]) => void
+}) {
+  const roster = useQuery({
+    queryKey: ['emails', 'course-students', course.id],
+    queryFn: () =>
+      api<CourseStudents>({
+        method: 'GET',
+        path: `/admin/emails/courses/${course.id}/students`,
+      }),
+  })
+  const [query, setQuery] = useState('')
+  const [everyone, setEveryone] = useState(true)
+  const [picked, setPicked] = useState<Set<string>>(() => new Set())
+  const people = Array.isArray(roster.data?.items) ? roster.data.items : []
+  const needle = query.trim().toLowerCase()
+  const visible = needle
+    ? people.filter(
+        (person) =>
+          person.name.toLowerCase().includes(needle) ||
+          person.email.toLowerCase().includes(needle),
+      )
+    : people
+  const total = roster.data?.count ?? null
+  const addCount = everyone ? (total ?? 0) : picked.size
+  const everyoneLabel =
+    total == null
+      ? `Everyone in ${course.name}`
+      : `Everyone in ${course.name} (${total.toLocaleString('en-NG')})`
+
+  function togglePerson(id: string) {
+    if (everyone) {
+      setEveryone(false)
+      setPicked(new Set([id]))
+      return
+    }
+    setPicked((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  return (
+    <div className="flex max-h-[28rem] w-[min(20rem,calc(100vw-1rem))] flex-col rounded-lg border border-border bg-popover text-popover-foreground shadow-lg">
+      {showBack ? <MenuButton onClick={onBack}>← Courses</MenuButton> : null}
+      <div className="p-2">
+        <Input
+          aria-label={`Search in ${course.name}`}
+          placeholder={`Search in ${course.name}`}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
+      <label className="mx-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+        <input
+          type="checkbox"
+          className="size-4 accent-primary"
+          checked={everyone}
+          disabled={roster.isLoading || total == null}
+          onChange={() => {
+            setEveryone((current) => !current)
+            setPicked(new Set())
+          }}
+        />
+        <span>{everyoneLabel}</span>
+      </label>
+      <div className="mx-2 border-t border-border" />
+      <div className="min-h-0 flex-1 overflow-y-auto p-1">
+        {roster.isLoading ? (
+          <p className="px-2 py-2 text-sm text-muted-foreground">Loading people…</p>
+        ) : roster.isError ? (
+          <p className="px-2 py-2 text-sm text-muted-foreground">
+            Could not load this course.
+          </p>
+        ) : people.length === 0 ? (
+          <p className="px-2 py-2 text-sm text-muted-foreground">
+            No one has paid for this course yet.
+          </p>
+        ) : visible.length === 0 ? (
+          <p className="px-2 py-2 text-sm text-muted-foreground">No one matches that.</p>
+        ) : (
+          visible.map((person) => (
+            <label
+              key={person.enrollmentId}
+              className="flex items-start gap-2 rounded-md px-2 py-1.5 hover:bg-accent"
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-primary"
+                checked={!everyone && picked.has(person.enrollmentId)}
+                onChange={() => togglePerson(person.enrollmentId)}
+              />
+              <span className="min-w-0">
+                <span className="block truncate text-sm">{person.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {person.email}
+                </span>
+              </span>
+            </label>
+          ))
+        )}
+      </div>
+      <div className="border-t border-border p-2">
+        <Button
+          type="button"
+          size="sm"
+          className="w-full"
+          disabled={addCount < 1 || roster.isLoading || roster.isError}
+          onClick={() => {
+            if (everyone) {
+              onAddAll(total ?? 0)
+              return
+            }
+            onAddPeople(people.filter((person) => picked.has(person.enrollmentId)))
+          }}
+        >
+          {addPeopleLabel(addCount)}
+        </Button>
+      </div>
+    </div>
   )
 }
 

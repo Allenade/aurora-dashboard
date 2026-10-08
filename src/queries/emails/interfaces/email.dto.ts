@@ -91,6 +91,17 @@ export type RecipientPreview = {
   }>
 }
 
+export type CourseStudent = {
+  enrollmentId: string
+  name: string
+  email: string
+}
+
+export type CourseStudents = {
+  count: number
+  items: CourseStudent[]
+}
+
 export type StudentSearchItem = {
   enrollmentId: string
   name: string
