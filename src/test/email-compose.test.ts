@@ -4,6 +4,7 @@ import {
   allPaidChip,
   audienceLabel,
   chipsFromSelectors,
+  addPeopleLabel,
   courseChip,
   customAgeChip,
   draftName,
@@ -42,6 +43,9 @@ describe('email compose', () => {
     ])
     expect(customAgeChip('18', '13')).toBeNull()
     expect(addChip([allPaidChip()], allPaidChip())).toHaveLength(1)
+    expect(courseChip(courseId, 'Robotics', 12).label).toBe('Robotics (all 12)')
+    expect(addPeopleLabel(1)).toBe('Add 1 person')
+    expect(addPeopleLabel(12)).toBe('Add 12 people')
   })
 
   it('describes who an email went to', () => {

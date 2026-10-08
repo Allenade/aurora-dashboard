@@ -16,8 +16,15 @@ export function allPaidChip(): Chip {
   return { selector: 'allPaid', label: 'All paid students' }
 }
 
-export function courseChip(id: string, name: string): Chip {
-  return { selector: `course:${id}`, label: name }
+export function courseChip(id: string, name: string, count?: number): Chip {
+  const label =
+    count == null ? name : `${name} (all ${count.toLocaleString('en-NG')})`
+  return { selector: `course:${id}`, label }
+}
+
+export function addPeopleLabel(count: number) {
+  const n = count.toLocaleString('en-NG')
+  return count === 1 ? 'Add 1 person' : `Add ${n} people`
 }
 
 export function ageChip(spec: string, label: string): Chip {
