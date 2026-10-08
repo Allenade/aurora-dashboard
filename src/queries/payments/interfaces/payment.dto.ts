@@ -48,6 +48,9 @@ export type Enrollment = {
   paidAt: string | null
   form: EnrollmentForm
   emailSentAt: string | null
+  /** pending, sending, sent, failed, or null when nothing was sent. */
+  emailStatus?: 'pending' | 'sending' | 'sent' | 'failed' | null
+  emailError?: string | null
   termsVersion: string | null
   privacyVersion: string | null
   consentAt: string | null

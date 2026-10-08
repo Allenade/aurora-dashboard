@@ -24,6 +24,8 @@ import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { SimpleHtmlEditor } from '@/components/simple-html-editor'
+import { storedHtml } from '@/lib/email-compose'
 import { allows, isSuperAdmin } from '@/lib/ability'
 import { courseStatusLabel, editableCourseStatus } from '@/lib/course-status'
 import {
@@ -347,6 +349,7 @@ function CourseForm({
   const [status, setStatus] = useState<CourseStatus>(
     editableCourseStatus(course.status),
   )
+  const [afterPayment, setAfterPayment] = useState(course.afterPaymentEmail ?? '')
   const [error, setError] = useState<string | null>(null)
   const client = useQueryClient()
 
@@ -387,6 +390,7 @@ function CourseForm({
       price: isFree ? 0 : price.trim() ? Number(price) : null,
       seatCap: seatCap.trim() ? Number(seatCap) : null,
       enrollmentCutoff: cutoff ? new Date(cutoff).toISOString() : null,
+      afterPaymentEmail: storedHtml(afterPayment),
     }
   }
 
@@ -477,6 +481,7 @@ function CourseForm({
           <option value="archived">Archived</option>
         </select>
       </Field>
+      <AfterPaymentEmail value={afterPayment} onChange={setAfterPayment} />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Can action="update" subject="course">
         <div className="flex flex-wrap gap-2">
@@ -555,6 +560,7 @@ function CreateCourseSheet({
   const [name, setName] = useState('')
   const [isFree, setIsFree] = useState(false)
   const [price, setPrice] = useState('')
+  const [afterPayment, setAfterPayment] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<AdminCourse | null>(null)
   useEffect(() => {
@@ -563,6 +569,7 @@ function CreateCourseSheet({
     setName('')
     setIsFree(false)
     setPrice('')
+    setAfterPayment('')
     setError(null)
     setCreated(null)
   }, [open])
@@ -613,6 +620,7 @@ function CreateCourseSheet({
                 status: 'draft',
                 isFree,
                 price: isFree ? 0 : price.trim() ? Number(price) : null,
+                afterPaymentEmail: storedHtml(afterPayment),
               }
               create.mutate(body)
             }}
@@ -648,6 +656,7 @@ function CreateCourseSheet({
               needs a price or Free.
             </p>
             <CourseMediaLater />
+            <AfterPaymentEmail value={afterPayment} onChange={setAfterPayment} />
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
             <Button type="submit" disabled={create.isPending}>
               Create draft
@@ -735,6 +744,30 @@ function ConfirmDeleteDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function AfterPaymentEmail({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (html: string) => void
+}) {
+  return (
+    <section className="space-y-2">
+      <p className="text-sm font-medium">After payment email</p>
+      <p className="text-xs text-muted-foreground">
+        Students get this by email after they pay. Put the joining link here. Students
+        who buy several courses get one email with each course's message.
+      </p>
+      <SimpleHtmlEditor
+        label="After payment email"
+        value={value}
+        onChange={onChange}
+        placeholder="Welcome message and joining link"
+      />
+    </section>
   )
 }
 

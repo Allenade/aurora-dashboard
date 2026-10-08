@@ -23,9 +23,13 @@ export const queryKeys = {
     detail: (id: string) => ['enrollments', id] as const,
   },
   emails: {
+    sent: ['emails', 'sent'] as const,
+    drafts: ['emails', 'drafts'] as const,
+    sentDetail: (id: string) => ['emails', 'sent', id] as const,
     campaigns: ['emails', 'campaigns'] as const,
     campaign: (id: string) => ['emails', 'campaigns', id] as const,
-    messages: (campaignId?: string) => ['emails', 'messages', campaignId ?? ''] as const,
+    messages: (campaignId?: string) =>
+      ['emails', 'messages', campaignId ?? ''] as const,
     templates: ['emails', 'templates'] as const,
     suppressions: ['emails', 'suppressions'] as const,
   },
@@ -33,6 +37,7 @@ export const queryKeys = {
     all: ['refunds'] as const,
     detail: (id: string) => ['refunds', id] as const,
   },
-  audit: (query: Record<string, string | number | undefined>) => ['audit', query] as const,
+  audit: (query: Record<string, string | number | undefined>) =>
+    ['audit', query] as const,
   settings: ['settings', 'organization'] as const,
 }
