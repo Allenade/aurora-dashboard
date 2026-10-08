@@ -42,6 +42,8 @@ export type AdminCourse = {
   /** Public picture URL, or null when the course has no picture. */
   imageUrl: string | null
   syllabus: CourseSyllabus
+  /** Message students get after they pay. Empty when there isn't one. */
+  afterPaymentEmail?: string | null
 }
 
 export type AdminCourseDetail = AdminCourse & {
@@ -62,6 +64,7 @@ export type UpsertCourseBody = {
   status?: CourseStatus
   sortOrder?: number
   cohort?: string | null
+  afterPaymentEmail?: string | null
 }
 
 export type UpdateCourseBody = Partial<Omit<UpsertCourseBody, 'slug'>>
