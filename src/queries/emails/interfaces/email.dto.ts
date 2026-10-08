@@ -27,12 +27,7 @@ export type EmailTemplate = {
 }
 
 export type CampaignStatus =
-  | 'queued'
-  | 'sending'
-  | 'paused'
-  | 'completed'
-  | 'cancelled'
-  | 'failed'
+  'queued' | 'sending' | 'paused' | 'completed' | 'cancelled' | 'failed'
 
 export type EmailCampaign = {
   id: string
@@ -49,13 +44,7 @@ export type EmailCampaign = {
 }
 
 export type MessageStatus =
-  | 'queued'
-  | 'sending'
-  | 'delivered'
-  | 'opened'
-  | 'bounced'
-  | 'failed'
-  | 'complained'
+  'queued' | 'sending' | 'delivered' | 'opened' | 'bounced' | 'failed' | 'complained'
 
 export type EmailMessage = {
   id: string
@@ -90,6 +79,75 @@ export type Suppression = {
   email: string
   reason: 'hard_bounce' | 'complaint' | 'unsubscribe'
   createdAt: string
+}
+
+export type RecipientPreview = {
+  count: number
+  sample: Array<{
+    email: string
+    name: string
+    enrollmentId: string | null
+    courses: string[]
+  }>
+}
+
+export type StudentSearchItem = {
+  enrollmentId: string
+  name: string
+  email: string
+  courses: string[]
+}
+
+export type EmailDraft = {
+  id: string
+  name: string
+  subject: string
+  html: string
+  text: string
+  kind: EmailKind
+  selectors: string[]
+  status: string
+  scheduledAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type SentEmail = {
+  id: string
+  name: string
+  subject: string
+  status: string
+  totalRecipients: number
+  sentCount: number
+  failedCount: number
+  createdAt: string
+}
+
+export type SentRecipient = {
+  id: string
+  enrollmentId: string | null
+  email: string
+  name: string
+  status: string
+  attempts: number
+  lastError: string | null
+  resendId: string | null
+}
+
+export type SentEmailDetail = SentEmail & {
+  html: string
+  text: string
+  selectors?: string[]
+  recipients: SentRecipient[]
+}
+
+export type SaveEmailDraftBody = {
+  name?: string
+  subject: string
+  html: string
+  text?: string
+  selectors: string[]
+  kind?: EmailKind
 }
 
 export const PLACEHOLDERS = [

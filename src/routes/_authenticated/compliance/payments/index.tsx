@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { isSuperAdmin } from '@/lib/ability'
 import { formatNaira, formatWat } from '@/lib/format'
+import { paidEnrollment, paymentEmailView } from '@/lib/payment-email'
 import { loadEnrollments } from '@/lib/load-enrollments'
 import { CORE_PROGRAM, peopleInProgram, programLabel } from '@/lib/program'
 import { queryKeys } from '@/lib/query-keys.factory'
@@ -116,6 +117,22 @@ function PaymentsPage() {
     setSelected([])
   }
 
+  const resendEmail = useMutation({
+    mutationFn: (id: string) =>
+      api<Enrollment>({
+        method: 'POST',
+        path: `/admin/enter-first/enrollments/${id}/resend-confirmation`,
+      }),
+    onSuccess: async () => {
+      toast.success('Email sent again')
+      await queryClient.invalidateQueries({ queryKey: ['enrollments'] })
+    },
+    onError: (error) =>
+      toast.error(
+        error instanceof ApiError ? error.message : 'Could not send the email again',
+      ),
+  })
+
   const remove = useMutation({
     mutationFn: (id: string) =>
       api<{ ok?: boolean }>({ method: 'DELETE', path: deleteEnrollmentPath(id) }),
@@ -128,7 +145,9 @@ function PaymentsPage() {
     },
     onError: (error) =>
       toast.error(
-        error instanceof ApiError ? error.message : 'Could not delete the payment record',
+        error instanceof ApiError
+          ? error.message
+          : 'Could not delete the payment record',
       ),
   })
 
@@ -147,7 +166,9 @@ function PaymentsPage() {
     },
     onError: (error) =>
       toast.error(
-        error instanceof ApiError ? error.message : 'Could not delete the payment records',
+        error instanceof ApiError
+          ? error.message
+          : 'Could not delete the payment records',
       ),
   })
 
@@ -203,6 +224,47 @@ function PaymentsPage() {
       ),
     },
     { accessorKey: 'paymentStatus', header: 'Status' },
+    {
+      id: 'email',
+      header: 'Email',
+      cell: ({ row }) => {
+        const view = paymentEmailView(row.original)
+        return (
+          <div className="space-y-1" onClick={(event) => event.stopPropagation()}>
+            {view.tone === 'failed' ? (
+              <p className="text-danger/80" title={view.reason}>
+                {view.text}
+              </p>
+            ) : (
+              <p
+                className={
+                  view.tone === 'sent'
+                    ? 'text-emerald-400'
+                    : view.tone === 'none'
+                      ? 'text-muted-foreground'
+                      : undefined
+                }
+              >
+                {view.text}
+              </p>
+            )}
+            {paidEnrollment(row.original) ? (
+              <Can action="update" subject="enter_first">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  disabled={resendEmail.isPending}
+                  onClick={() => resendEmail.mutate(row.original.id)}
+                >
+                  Resend email
+                </Button>
+              </Can>
+            ) : null}
+          </div>
+        )
+      },
+    },
     {
       id: 'ref',
       header: 'Reference',
@@ -554,7 +616,7 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
       api<Enrollment>({ method: 'GET', path: `/admin/enter-first/enrollments/${id}` }),
   })
   const act = useMutation({
-    mutationFn: (action: 'reverify' | 'resend-confirmation') =>
+    mutationFn: (action: 'reverify') =>
       api({ method: 'POST', path: `/admin/compliance/enrollments/${id}/${action}` }),
     onSuccess: async () => {
       toast.success('Done')
@@ -564,6 +626,21 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
     },
     onError: (error) =>
       toast.error(error instanceof ApiError ? error.message : 'Request failed'),
+  })
+  const resendEmail = useMutation({
+    mutationFn: () =>
+      api<Enrollment>({
+        method: 'POST',
+        path: `/admin/enter-first/enrollments/${id}/resend-confirmation`,
+      }),
+    onSuccess: async () => {
+      toast.success('Email sent again')
+      await client.invalidateQueries({ queryKey: ['enrollments'] })
+    },
+    onError: (error) =>
+      toast.error(
+        error instanceof ApiError ? error.message : 'Could not send the email again',
+      ),
   })
   const [reason, setReason] = useState('')
   const refund = useMutation({
@@ -578,6 +655,7 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
       toast.error(error instanceof ApiError ? error.message : 'Refund failed'),
   })
   const row = detail.data
+  const emailView = row ? paymentEmailView(row) : null
   const needsReview = Boolean(
     row &&
     row.paymentStatus === 'success' &&
@@ -611,7 +689,14 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
               <p>Source {row.confirmationSource ?? '-'}</p>
               <p>Verified {formatWat(row.verifiedAt)}</p>
               <p>Consent {formatWat(row.consentAt)}</p>
-              <p>Email sent {formatWat(row.emailSentAt)}</p>
+              <p>
+                Email{' '}
+                {emailView?.tone === 'failed' ? (
+                  <span title={emailView.reason}>{emailView.text}</span>
+                ) : (
+                  emailView?.text
+                )}
+              </p>
               <p className="text-muted-foreground">
                 Amount mismatch {row.amountMismatch ? 'yes' : 'no'}
               </p>
@@ -620,13 +705,16 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
                   <Button size="sm" onClick={() => act.mutate('reverify')}>
                     Re-verify
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => act.mutate('resend-confirmation')}
-                  >
-                    Resend confirmation
-                  </Button>
+                  {row.paymentStatus === 'success' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={resendEmail.isPending}
+                      onClick={() => resendEmail.mutate()}
+                    >
+                      Resend email
+                    </Button>
+                  ) : null}
                 </div>
               </Can>
               <Can action="create" subject="refund">

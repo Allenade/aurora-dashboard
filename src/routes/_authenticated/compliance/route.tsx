@@ -19,7 +19,7 @@ import type {
   DataRequest,
 } from '@/queries/compliance/interfaces/compliance.dto'
 import type { AdminCourse } from '@/queries/courses/interfaces/course.dto'
-import type { EmailCampaign } from '@/queries/emails/interfaces/email.dto'
+import type { SentEmail } from '@/queries/emails/interfaces/email.dto'
 import type { RefundRequest } from '@/queries/refunds/interfaces/refund.dto'
 import type { OrganizationSettings } from '@/queries/settings/interfaces/settings.dto'
 export const Route = createFileRoute('/_authenticated/compliance')({
@@ -79,10 +79,9 @@ function useBadges(): Partial<Record<BadgeKey, number>> {
     queryFn: () =>
       api<DataRequest[]>({ method: 'GET', path: '/admin/compliance/data-requests' }),
   })
-  const campaigns = useQuery({
-    queryKey: queryKeys.emails.campaigns,
-    queryFn: () =>
-      api<EmailCampaign[]>({ method: 'GET', path: '/admin/emails/campaigns' }),
+  const sentEmails = useQuery({
+    queryKey: queryKeys.emails.sent,
+    queryFn: () => api<SentEmail[]>({ method: 'GET', path: '/admin/emails/sent' }),
   })
   const settings = useQuery({
     queryKey: queryKeys.settings,
@@ -105,7 +104,7 @@ function useBadges(): Partial<Record<BadgeKey, number>> {
     : 0
   return {
     courses: courses.data?.length,
-    emails: campaigns.data?.filter(
+    emails: sentEmails.data?.filter(
       (row) => row.status === 'sending' || row.status === 'queued',
     ).length,
     payments: summary.data?.exceptions,
