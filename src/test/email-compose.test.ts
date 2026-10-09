@@ -4,12 +4,17 @@ import {
   allPaidChip,
   audienceLabel,
   chipsFromSelectors,
+  addPeopleLabel,
   courseChip,
   customAgeChip,
   draftName,
   htmlToText,
+  invalidAddressNote,
+  isEmailAddress,
+  outsideChip,
   peopleLine,
   presetAgeChips,
+  splitAddressPaste,
   sendQuestion,
   storedHtml,
   studentChip,
@@ -42,6 +47,9 @@ describe('email compose', () => {
     ])
     expect(customAgeChip('18', '13')).toBeNull()
     expect(addChip([allPaidChip()], allPaidChip())).toHaveLength(1)
+    expect(courseChip(courseId, 'Robotics', 12).label).toBe('Robotics (all 12)')
+    expect(addPeopleLabel(1)).toBe('Add 1 person')
+    expect(addPeopleLabel(12)).toBe('Add 12 people')
   })
 
   it('describes who an email went to', () => {
@@ -63,7 +71,26 @@ describe('email compose', () => {
     ).toBe('Ada Okoye, Robotics')
     expect(peopleLine(48)).toBe('This will go to 48 people')
     expect(peopleLine(1)).toBe('This will go to 1 person')
+    expect(peopleLine(13, 1)).toBe(
+      'This will go to 13 people, including 1 who is not a student',
+    )
+    expect(peopleLine(13, 2)).toBe(
+      'This will go to 13 people, including 2 who are not students',
+    )
     expect(sendQuestion(48)).toBe('Send to 48 people?')
+    expect(outsideChip('Tee@Gmail.com')).toEqual({
+      selector: 'email:tee@gmail.com',
+      label: 'Tee@Gmail.com',
+    })
+    expect(isEmailAddress('tee@gmail.com')).toBe(true)
+    expect(isEmailAddress('tee@gmail')).toBe(false)
+    expect(isEmailAddress('not an email')).toBe(false)
+    expect(splitAddressPaste('a@x.com, b@y.com')).toEqual(['a@x.com', 'b@y.com'])
+    expect(splitAddressPaste('Ada Okoye')).toBeNull()
+    expect(invalidAddressNote(['nope'])).toBe('nope is not an email address.')
+    expect(chipsFromSelectors(['email:tee@gmail.com'], courses)[0]?.label).toBe(
+      'tee@gmail.com',
+    )
   })
 
   it('keeps message text and clears an empty message', () => {

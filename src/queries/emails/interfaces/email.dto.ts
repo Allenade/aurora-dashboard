@@ -83,12 +83,24 @@ export type Suppression = {
 
 export type RecipientPreview = {
   count: number
+  notInSystem?: number
   sample: Array<{
     email: string
     name: string
     enrollmentId: string | null
     courses: string[]
   }>
+}
+
+export type CourseStudent = {
+  enrollmentId: string
+  name: string
+  email: string
+}
+
+export type CourseStudents = {
+  count: number
+  items: CourseStudent[]
 }
 
 export type StudentSearchItem = {
@@ -132,6 +144,7 @@ export type SentRecipient = {
   attempts: number
   lastError: string | null
   resendId: string | null
+  inSystem: boolean
 }
 
 export type SentEmailDetail = SentEmail & {

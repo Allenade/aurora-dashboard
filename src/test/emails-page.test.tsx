@@ -21,6 +21,10 @@ vi.mock('@/queries/api', () => ({
 }))
 
 const courseId = '11111111-1111-4111-8111-111111111111'
+const visionId = '44444444-4444-4444-8444-444444444444'
+const adaId = '33333333-3333-4333-8333-333333333333'
+const toluId = '55555555-5555-4555-8555-555555555555'
+const bolaId = '66666666-6666-4666-8666-666666666666'
 
 const sent: SentEmail = {
   id: 'sent-1',
@@ -74,6 +78,7 @@ const detail: SentEmailDetail = {
       attempts: 1,
       lastError: null,
       resendId: null,
+      inSystem: true,
     },
     {
       id: 'msg-2',
@@ -84,8 +89,46 @@ const detail: SentEmailDetail = {
       attempts: 2,
       lastError: 'Mailbox full',
       resendId: null,
+      inSystem: true,
+    },
+    {
+      id: 'msg-3',
+      enrollmentId: null,
+      email: 'tee@gmail.com',
+      name: '',
+      status: 'delivered',
+      attempts: 1,
+      lastError: null,
+      resendId: null,
+      inSystem: false,
     },
   ],
+}
+
+function course(id: string, slug: string, name: string) {
+  return {
+    id,
+    slug,
+    name,
+    description: '',
+    price: 1000,
+    currency: 'NGN',
+    isFree: false,
+    seatCap: null,
+    seatsTaken: 4,
+    seatsRemaining: null,
+    startDate: null,
+    endDate: null,
+    enrollmentCutoff: null,
+    status: 'open',
+    sortOrder: 0,
+    cohort: null,
+    enrollmentCount: 4,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    imageUrl: null,
+    syllabus: { url: null, filename: null, text: null },
+  }
 }
 
 function renderEmails() {
@@ -117,6 +160,7 @@ describe('emails page', () => {
       async (request: {
         method: string
         path: string
+        query?: { q?: string }
         body?: { selectors?: string[] }
       }) => {
         if (request.method === 'GET' && request.path === '/admin/emails/sent')
@@ -124,31 +168,40 @@ describe('emails page', () => {
         if (request.method === 'GET' && request.path === '/admin/emails/drafts')
           return [draft, scheduled]
         if (request.method === 'GET' && request.path === '/admin/courses') {
-          return [
-            {
-              id: courseId,
-              slug: 'robotics',
-              name: 'Robotics',
-              description: '',
-              price: 1000,
-              currency: 'NGN',
-              isFree: false,
-              seatCap: null,
-              seatsTaken: 4,
-              seatsRemaining: null,
-              startDate: null,
-              endDate: null,
-              enrollmentCutoff: null,
-              status: 'open',
-              sortOrder: 0,
-              cohort: null,
-              enrollmentCount: 4,
-              createdAt: '2026-01-01T00:00:00.000Z',
-              updatedAt: '2026-01-01T00:00:00.000Z',
-              imageUrl: null,
-              syllabus: { url: null, filename: null, text: null },
-            },
-          ]
+          return [course(courseId, 'robotics', 'Robotics'), course(visionId, 'vision', 'Computer vision')]
+        }
+        if (
+          request.method === 'GET' &&
+          request.path === `/admin/emails/courses/${courseId}/students`
+        ) {
+          return {
+            count: 2,
+            items: [
+              { enrollmentId: adaId, name: 'Ada Okoye', email: 'ada@example.com' },
+              { enrollmentId: toluId, name: 'Tolu Ade', email: 'tolu@example.com' },
+            ],
+          }
+        }
+        if (
+          request.method === 'GET' &&
+          request.path === `/admin/emails/courses/${visionId}/students`
+        ) {
+          return {
+            count: 3,
+            items: [
+              { enrollmentId: bolaId, name: 'Bola Nwosu', email: 'bola@example.com' },
+              {
+                enrollmentId: '77777777-7777-4777-8777-777777777777',
+                name: 'Chi Okonkwo',
+                email: 'chi@example.com',
+              },
+              {
+                enrollmentId: '88888888-8888-4888-8888-888888888888',
+                name: 'Dayo Balogun',
+                email: 'dayo@example.com',
+              },
+            ],
+          }
         }
         if (request.method === 'GET' && request.path === '/admin/emails/sent/sent-1')
           return detail
@@ -157,22 +210,30 @@ describe('emails page', () => {
           request.path === '/admin/emails/recipients/preview'
         ) {
           const selectors = request.body?.selectors ?? []
-          return { count: selectors.includes('allPaid') ? 48 : 4, sample: [] }
+          const notInSystem = selectors.filter((selector) =>
+            selector.startsWith('email:'),
+          ).length
+          return {
+            count: (selectors.includes('allPaid') ? 48 : 4) + notInSystem,
+            notInSystem,
+            sample: [],
+          }
         }
         if (
           request.method === 'GET' &&
           request.path === '/admin/emails/students/search'
         ) {
-          return {
-            items: [
-              {
-                enrollmentId: '33333333-3333-4333-8333-333333333333',
-                name: 'Ada Okoye',
-                email: 'ada@example.com',
-                courses: ['Robotics'],
-              },
-            ],
+          const q = String(request.query?.q ?? '').trim().toLowerCase()
+          const ada = {
+            enrollmentId: adaId,
+            name: 'Ada Okoye',
+            email: 'ada@example.com',
+            courses: ['Robotics'],
           }
+          if (!q) return { items: [] }
+          if (ada.name.toLowerCase().includes(q) || ada.email.includes(q))
+            return { items: [ada] }
+          return { items: [] }
         }
         return { ok: true }
       },
@@ -208,12 +269,79 @@ describe('emails page', () => {
     expect(screen.getByRole('button', { name: /One student/ })).toBeInTheDocument()
   })
 
+  it('adds a whole course or a few people from it', async () => {
+    const user = userEvent.setup()
+    renderEmails()
+    await user.click(await screen.findByRole('button', { name: /Compose/ }))
+    await user.click(await screen.findByRole('button', { name: '+ Add ▾' }))
+    await user.click(screen.getByRole('button', { name: /Students in a course/ }))
+    await user.click(await screen.findByRole('button', { name: /Robotics/ }))
+
+    const search = await screen.findByRole('textbox', { name: 'Search in Robotics' })
+    const everyone = screen.getByRole('checkbox', { name: /Everyone in Robotics \(2\)/ })
+    expect(everyone).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /Ada Okoye/ })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /Tolu Ade/ })).not.toBeChecked()
+
+    await user.type(search, 'tolu')
+    expect(screen.queryByText('Ada Okoye')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Everyone in Robotics \(2\)/ })).toBeChecked()
+    await user.clear(search)
+
+    await user.click(screen.getByRole('button', { name: 'Add 2 people' }))
+    expect(await screen.findByText('Robotics (all 2)')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '+ Add ▾' }))
+    await user.click(screen.getByRole('button', { name: /Students in a course/ }))
+    await user.click(await screen.findByRole('button', { name: /Computer vision/ }))
+    await user.click(
+      await screen.findByRole('checkbox', { name: /Everyone in Computer vision \(3\)/ }),
+    )
+    await user.click(screen.getByRole('checkbox', { name: /Bola Nwosu/ }))
+    await user.click(screen.getByRole('checkbox', { name: /Chi Okonkwo/ }))
+    await user.click(screen.getByRole('button', { name: 'Add 2 people' }))
+
+    expect(screen.getByText('Robotics (all 2)')).toBeInTheDocument()
+    expect(screen.getByText('Bola Nwosu')).toBeInTheDocument()
+    expect(screen.getByText('Chi Okonkwo')).toBeInTheDocument()
+    expect(screen.queryByText('Dayo Balogun')).not.toBeInTheDocument()
+  })
+
+  it('adds an email that is not a student, and keeps a real student as a student', async () => {
+    const user = userEvent.setup()
+    renderEmails()
+    await user.click(await screen.findByRole('button', { name: /Compose/ }))
+    const field = await screen.findByRole('textbox', { name: 'Type a name or any email' })
+
+    await user.type(field, 'tee@gmail.com')
+    await user.click(
+      await screen.findByRole('button', { name: 'Add tee@gmail.com (not a student)' }),
+    )
+    expect(screen.getByText('tee@gmail.com')).toBeInTheDocument()
+    expect(screen.getByText('· Not a student')).toBeInTheDocument()
+
+    await user.type(field, 'ada@example.com')
+    await user.click(await screen.findByRole('button', { name: /Ada Okoye/ }))
+    expect(screen.getByText('Ada Okoye')).toBeInTheDocument()
+    expect(screen.getAllByText('· Not a student')).toHaveLength(1)
+    expect(
+      await screen.findByText('This will go to 5 people, including 1 who is not a student'),
+    ).toBeInTheDocument()
+
+    await user.click(field)
+    await user.paste('other@example.com, nope')
+    expect(await screen.findByText('other@example.com')).toBeInTheDocument()
+    expect(screen.getByText('nope is not an email address.')).toBeInTheDocument()
+  })
+
   it('opens a sent email and shows who received it', async () => {
     const user = userEvent.setup()
     renderEmails()
     await user.click(await screen.findByRole('button', { name: /You are in/ }))
     expect(await screen.findByText('Who got it')).toBeInTheDocument()
-    expect(screen.getByText('✓ Sent')).toBeInTheDocument()
+    expect(screen.getAllByText('✓ Sent')).toHaveLength(2)
+    expect(screen.getByText('tee@gmail.com')).toBeInTheDocument()
+    expect(screen.getByText('Not a student')).toBeInTheDocument()
     expect(screen.getByText('✗ Failed')).toHaveAttribute('title', 'Mailbox full')
     expect(
       screen.getByRole('button', { name: 'Resend to failed (1)' }),
