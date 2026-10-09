@@ -78,6 +78,7 @@ const detail: SentEmailDetail = {
       attempts: 1,
       lastError: null,
       resendId: null,
+      inSystem: true,
     },
     {
       id: 'msg-2',
@@ -88,6 +89,18 @@ const detail: SentEmailDetail = {
       attempts: 2,
       lastError: 'Mailbox full',
       resendId: null,
+      inSystem: true,
+    },
+    {
+      id: 'msg-3',
+      enrollmentId: null,
+      email: 'tee@gmail.com',
+      name: '',
+      status: 'delivered',
+      attempts: 1,
+      lastError: null,
+      resendId: null,
+      inSystem: false,
     },
   ],
 }
@@ -147,6 +160,7 @@ describe('emails page', () => {
       async (request: {
         method: string
         path: string
+        query?: { q?: string }
         body?: { selectors?: string[] }
       }) => {
         if (request.method === 'GET' && request.path === '/admin/emails/sent')
@@ -196,22 +210,30 @@ describe('emails page', () => {
           request.path === '/admin/emails/recipients/preview'
         ) {
           const selectors = request.body?.selectors ?? []
-          return { count: selectors.includes('allPaid') ? 48 : 4, sample: [] }
+          const notInSystem = selectors.filter((selector) =>
+            selector.startsWith('email:'),
+          ).length
+          return {
+            count: (selectors.includes('allPaid') ? 48 : 4) + notInSystem,
+            notInSystem,
+            sample: [],
+          }
         }
         if (
           request.method === 'GET' &&
           request.path === '/admin/emails/students/search'
         ) {
-          return {
-            items: [
-              {
-                enrollmentId: adaId,
-                name: 'Ada Okoye',
-                email: 'ada@example.com',
-                courses: ['Robotics'],
-              },
-            ],
+          const q = String(request.query?.q ?? '').trim().toLowerCase()
+          const ada = {
+            enrollmentId: adaId,
+            name: 'Ada Okoye',
+            email: 'ada@example.com',
+            courses: ['Robotics'],
           }
+          if (!q) return { items: [] }
+          if (ada.name.toLowerCase().includes(q) || ada.email.includes(q))
+            return { items: [ada] }
+          return { items: [] }
         }
         return { ok: true }
       },
@@ -285,12 +307,41 @@ describe('emails page', () => {
     expect(screen.queryByText('Dayo Balogun')).not.toBeInTheDocument()
   })
 
+  it('adds an email that is not a student, and keeps a real student as a student', async () => {
+    const user = userEvent.setup()
+    renderEmails()
+    await user.click(await screen.findByRole('button', { name: /Compose/ }))
+    const field = await screen.findByRole('textbox', { name: 'Type a name or any email' })
+
+    await user.type(field, 'tee@gmail.com')
+    await user.click(
+      await screen.findByRole('button', { name: 'Add tee@gmail.com (not a student)' }),
+    )
+    expect(screen.getByText('tee@gmail.com')).toBeInTheDocument()
+    expect(screen.getByText('· Not a student')).toBeInTheDocument()
+
+    await user.type(field, 'ada@example.com')
+    await user.click(await screen.findByRole('button', { name: /Ada Okoye/ }))
+    expect(screen.getByText('Ada Okoye')).toBeInTheDocument()
+    expect(screen.getAllByText('· Not a student')).toHaveLength(1)
+    expect(
+      await screen.findByText('This will go to 5 people, including 1 who is not a student'),
+    ).toBeInTheDocument()
+
+    await user.click(field)
+    await user.paste('other@example.com, nope')
+    expect(await screen.findByText('other@example.com')).toBeInTheDocument()
+    expect(screen.getByText('nope is not an email address.')).toBeInTheDocument()
+  })
+
   it('opens a sent email and shows who received it', async () => {
     const user = userEvent.setup()
     renderEmails()
     await user.click(await screen.findByRole('button', { name: /You are in/ }))
     expect(await screen.findByText('Who got it')).toBeInTheDocument()
-    expect(screen.getByText('✓ Sent')).toBeInTheDocument()
+    expect(screen.getAllByText('✓ Sent')).toHaveLength(2)
+    expect(screen.getByText('tee@gmail.com')).toBeInTheDocument()
+    expect(screen.getByText('Not a student')).toBeInTheDocument()
     expect(screen.getByText('✗ Failed')).toHaveAttribute('title', 'Mailbox full')
     expect(
       screen.getByRole('button', { name: 'Resend to failed (1)' }),

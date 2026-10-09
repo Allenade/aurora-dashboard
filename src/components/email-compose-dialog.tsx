@@ -22,12 +22,19 @@ import {
   customAgeChip,
   draftName,
   htmlToText,
+  invalidAddressNote,
+  isEmailAddress,
   isLiveCourseStatus,
+  isOutsideSelector,
   isUuid,
+  outsideChip,
+  outsideCountLine,
   peopleLine,
   presetAgeChips,
   sendQuestion,
+  splitAddressPaste,
   studentChip,
+  takeCommittedAddresses,
   toLocalDateTimeInput,
   useDebounced,
   type Chip,
@@ -196,6 +203,7 @@ export function ComposeDialog({
   }, [snap, subject, busy, canWrite])
 
   const count = preview.data?.count ?? 0
+  const notInSystem = preview.data?.notInSystem ?? 0
   const checking =
     chips.length > 0 && (selectorKey !== debouncedSelectors || preview.isFetching)
   const title = !draft
@@ -363,7 +371,7 @@ export function ComposeDialog({
       ? 'Checking how many people…'
       : preview.isError
         ? 'Could not check how many people.'
-        : peopleLine(count)
+        : peopleLine(count, notInSystem)
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -375,29 +383,22 @@ export function ComposeDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-2 py-2">
+          <div className="rounded-lg border border-border">
+            <div className="flex flex-wrap items-center gap-2 px-2 py-2">
             <span className="text-sm text-muted-foreground">To</span>
             {chips.map((chip) => (
-              <span
+              <RecipientChip
                 key={chip.selector}
-                className="inline-flex max-w-full items-center gap-1 rounded-full bg-raised px-2 py-1 text-xs"
-              >
-                <span className="truncate">{chip.label}</span>
-                {canWrite ? (
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-foreground"
-                    aria-label={`Remove ${chip.label}`}
-                    onClick={() =>
-                      setChips((current) =>
-                        current.filter((item) => item.selector !== chip.selector),
-                      )
-                    }
-                  >
-                    ×
-                  </button>
-                ) : null}
-              </span>
+                chip={chip}
+                onRemove={
+                  canWrite
+                    ? () =>
+                        setChips((current) =>
+                          current.filter((item) => item.selector !== chip.selector),
+                        )
+                    : undefined
+                }
+              />
             ))}
             {canWrite ? (
               <AddMenu
@@ -412,6 +413,12 @@ export function ComposeDialog({
                 )}
               </span>
             )}
+            </div>
+            {canWrite ? (
+              <AddressField
+                onAdd={(chip) => setChips((current) => addChip(current, chip))}
+              />
+            ) : null}
           </div>
           <p className="text-sm text-muted-foreground">{whoLine}</p>
           {status === 'scheduled' && scheduledAt ? (
@@ -493,6 +500,11 @@ export function ComposeDialog({
             confirming ? (
               <div className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-3">
                 <p className="text-sm font-medium">{sendQuestion(count)}</p>
+                {outsideCountLine(notInSystem) ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {outsideCountLine(notInSystem)}
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -571,6 +583,185 @@ export function ComposeDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+function RecipientChip({ chip, onRemove }: { chip: Chip; onRemove?: () => void }) {
+  const outside = isOutsideSelector(chip.selector)
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-raised px-2 py-1 text-xs">
+      <span className="truncate">{chip.label}</span>
+      {outside ? (
+        <span className="shrink-0 text-muted-foreground">· Not a student</span>
+      ) : null}
+      {onRemove ? (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={`Remove ${chip.label}`}
+          onClick={onRemove}
+        >
+          ×
+        </button>
+      ) : null}
+    </span>
+  )
+}
+
+function AddressField({ onAdd }: { onAdd: (chip: Chip) => void }) {
+  const [query, setQuery] = useState('')
+  const [note, setNote] = useState<string | null>(null)
+  const debounced = useDebounced(query.trim(), 300)
+  const students = useQuery({
+    queryKey: ['emails', 'to-search', debounced],
+    enabled: debounced.length >= 2,
+    queryFn: () => searchStudents(debounced),
+  })
+  const found = Array.isArray(students.data) ? students.data : []
+  const email = isEmailAddress(debounced) ? debounced : null
+  const exact = email
+    ? found.find((item) => item.email.trim().toLowerCase() === email.toLowerCase())
+    : undefined
+  const showOutside =
+    email != null &&
+    query.trim() === debounced &&
+    !students.isFetching &&
+    !exact
+
+  async function addToken(raw: string, fromList = false) {
+    const token = raw.trim()
+    if (!token) return 'empty' as const
+    if (!isEmailAddress(token)) {
+      if (fromList || token.includes('@')) return 'invalid' as const
+      const matches = await searchStudents(token)
+      if (matches.length === 1) {
+        const student = matches[0]
+        if (student) onAdd(studentChip(student.enrollmentId, student.name))
+        return 'added' as const
+      }
+      return matches.length > 1 ? ('pick' as const) : ('name' as const)
+    }
+    const matches = await searchStudents(token)
+    const student = matches.find(
+      (item) => item.email.trim().toLowerCase() === token.toLowerCase(),
+    )
+    onAdd(
+      student ? studentChip(student.enrollmentId, student.name) : outsideChip(token),
+    )
+    return 'added' as const
+  }
+
+  function noteFor(result: 'invalid' | 'pick' | 'name', token: string) {
+    if (result === 'pick') return 'Pick a student from the list.'
+    if (result === 'name')
+      return 'No student has that name. Type an email address to add them.'
+    return invalidAddressNote([token])
+  }
+
+  async function addMany(parts: string[]) {
+    const invalid: string[] = []
+    for (const part of parts) {
+      const result = await addToken(part, true)
+      if (result === 'invalid') invalid.push(part.trim())
+    }
+    setNote(invalidAddressNote(invalid))
+  }
+
+  return (
+    <div className="border-t border-border px-2 py-1.5">
+      <input
+        aria-label="Type a name or any email"
+        placeholder="Type a name or any email…"
+        className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        value={query}
+        onChange={(event) => {
+          const next = event.target.value
+          const committed = takeCommittedAddresses(next)
+          if (committed) {
+            setQuery(committed.rest)
+            void addMany(committed.ready)
+            return
+          }
+          setQuery(next)
+          setNote(null)
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return
+          event.preventDefault()
+          const current = query
+          void addToken(current).then((result) => {
+            if (result === 'added' || result === 'empty') {
+              setQuery('')
+              setNote(null)
+              return
+            }
+            setNote(noteFor(result, current.trim()))
+          })
+        }}
+        onPaste={(event) => {
+          const pasted = splitAddressPaste(event.clipboardData.getData('text'))
+          if (!pasted) return
+          event.preventDefault()
+          setQuery('')
+          void addMany(pasted)
+        }}
+      />
+      {note ? <p className="pt-1 text-xs text-muted-foreground">{note}</p> : null}
+      {debounced.length >= 2 && query.trim() === debounced ? (
+        <div className="mt-1 space-y-0.5">
+          {students.isFetching ? (
+            <p className="px-1 py-1 text-sm text-muted-foreground">Looking…</p>
+          ) : (
+            <>
+              {found.map((item) => (
+                <button
+                  key={item.enrollmentId}
+                  type="button"
+                  className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-accent"
+                  onClick={() => {
+                    onAdd(studentChip(item.enrollmentId, item.name))
+                    setQuery('')
+                    setNote(null)
+                  }}
+                >
+                  <span className="block text-sm">{item.name}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {item.email}
+                  </span>
+                </button>
+              ))}
+              {showOutside ? (
+                <button
+                  type="button"
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+                  onClick={() => {
+                    onAdd(outsideChip(email))
+                    setQuery('')
+                    setNote(null)
+                  }}
+                >
+                  Add {email} (not a student)
+                </button>
+              ) : null}
+              {!students.isFetching && found.length === 0 && !showOutside ? (
+                <p className="px-1 py-1 text-sm text-muted-foreground">
+                  No students match that. An email address can still be added.
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+async function searchStudents(q: string) {
+  const result = await api<{ items: StudentSearchItem[] }>({
+    method: 'GET',
+    path: '/admin/emails/students/search',
+    query: { q },
+  })
+  return Array.isArray(result.items) ? result.items : []
 }
 
 function AddMenu({
