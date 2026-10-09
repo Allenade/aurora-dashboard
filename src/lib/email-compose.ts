@@ -203,6 +203,18 @@ export function outsideCountLine(notInSystem: number) {
   return null
 }
 
+export function deleteForeverPrompt(count: number) {
+  if (count === 1) {
+    return "Delete this email forever? This can't be undone. People who already got it will still have it in their inbox."
+  }
+  return "Delete these emails forever? This can't be undone. People who already got them will still have them in their inbox."
+}
+
+export function hideSelectedLabel(count: number) {
+  const n = count.toLocaleString('en-NG')
+  return `Hide selected (${n})`
+}
+
 export function sendQuestion(count: number) {
   const n = count.toLocaleString('en-NG')
   return count === 1 ? 'Send to 1 person?' : `Send to ${n} people?`
