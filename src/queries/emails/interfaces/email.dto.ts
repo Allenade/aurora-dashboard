@@ -133,6 +133,7 @@ export type SentEmail = {
   sentCount: number
   failedCount: number
   createdAt: string
+  hiddenAt?: string | null
 }
 
 export type SentRecipient = {

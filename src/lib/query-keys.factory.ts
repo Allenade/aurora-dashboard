@@ -24,6 +24,7 @@ export const queryKeys = {
   },
   emails: {
     sent: ['emails', 'sent'] as const,
+    hidden: ['emails', 'hidden'] as const,
     drafts: ['emails', 'drafts'] as const,
     sentDetail: (id: string) => ['emails', 'sent', id] as const,
     campaigns: ['emails', 'campaigns'] as const,

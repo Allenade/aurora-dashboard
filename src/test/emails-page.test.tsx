@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AbilityProvider } from '@/components/ability'
@@ -11,13 +11,21 @@ import type {
 } from '@/queries/emails/interfaces/email.dto'
 import { Route } from '@/routes/_authenticated/compliance/emails/index'
 
-const { api } = vi.hoisted(() => ({
-  api: vi.fn(),
-}))
+const { api, ApiError } = vi.hoisted(() => {
+  class ApiError extends Error {
+    statusCode: number
+    constructor(message: string, statusCode = 500) {
+      super(message)
+      this.name = 'ApiError'
+      this.statusCode = statusCode
+    }
+  }
+  return { api: vi.fn(), ApiError }
+})
 
 vi.mock('@/queries/api', () => ({
   api,
-  ApiError: class ApiError extends Error {},
+  ApiError,
 }))
 
 const courseId = '11111111-1111-4111-8111-111111111111'
@@ -35,6 +43,48 @@ const sent: SentEmail = {
   sentCount: 48,
   failedCount: 2,
   createdAt: '2026-10-08T09:00:00.000Z',
+  hiddenAt: null,
+}
+
+const sentLaptop: SentEmail = {
+  id: 'sent-3',
+  name: 'Ages 13–17',
+  subject: 'Bring a laptop',
+  status: 'completed',
+  totalRecipients: 8,
+  sentCount: 8,
+  failedCount: 0,
+  createdAt: '2026-10-06T09:00:00.000Z',
+  hiddenAt: null,
+}
+
+const hiddenMail: SentEmail = {
+  id: 'sent-2',
+  name: 'Robotics',
+  subject: 'Your joining link',
+  status: 'completed',
+  totalRecipients: 12,
+  sentCount: 12,
+  failedCount: 0,
+  createdAt: '2026-10-07T11:00:00.000Z',
+  hiddenAt: '2026-10-08T12:00:00.000Z',
+}
+
+const hiddenSending: SentEmail = {
+  id: 'sent-4',
+  name: 'Evening class',
+  subject: 'Still going',
+  status: 'sending',
+  totalRecipients: 4,
+  sentCount: 1,
+  failedCount: 0,
+  createdAt: '2026-10-08T10:00:00.000Z',
+  hiddenAt: '2026-10-08T10:05:00.000Z',
+}
+
+const mailbox = {
+  sent: [] as SentEmail[],
+  hidden: [] as SentEmail[],
 }
 
 const draft: EmailDraft = {
@@ -155,16 +205,48 @@ function renderEmails() {
 
 describe('emails page', () => {
   beforeEach(() => {
+    mailbox.sent = [{ ...sent }, { ...sentLaptop }]
+    mailbox.hidden = [{ ...hiddenMail }, { ...hiddenSending }]
     api.mockReset()
     api.mockImplementation(
       async (request: {
         method: string
         path: string
-        query?: { q?: string }
-        body?: { selectors?: string[] }
+        query?: { q?: string; hidden?: boolean }
+        body?: { selectors?: string[]; ids?: string[] }
       }) => {
         if (request.method === 'GET' && request.path === '/admin/emails/sent')
-          return [sent]
+          return request.query?.hidden ? mailbox.hidden : mailbox.sent
+        if (request.method === 'POST' && request.path === '/admin/emails/sent/hide') {
+          const ids = new Set(request.body?.ids ?? [])
+          const moving = mailbox.sent.filter((row) => ids.has(row.id))
+          mailbox.sent = mailbox.sent.filter((row) => !ids.has(row.id))
+          mailbox.hidden = [
+            ...moving.map((row) => ({ ...row, hiddenAt: '2026-10-09T00:00:00.000Z' })),
+            ...mailbox.hidden,
+          ]
+          return { ok: true }
+        }
+        if (request.method === 'POST' && request.path === '/admin/emails/sent/unhide') {
+          const ids = new Set(request.body?.ids ?? [])
+          const moving = mailbox.hidden.filter((row) => ids.has(row.id))
+          mailbox.hidden = mailbox.hidden.filter((row) => !ids.has(row.id))
+          mailbox.sent = [
+            ...moving.map((row) => ({ ...row, hiddenAt: null })),
+            ...mailbox.sent,
+          ]
+          return { ok: true }
+        }
+        if (request.method === 'DELETE' && request.path === '/admin/emails/sent') {
+          const ids = request.body?.ids ?? []
+          const blocked = mailbox.hidden.some(
+            (row) =>
+              ids.includes(row.id) && (row.status === 'sending' || row.status === 'queued'),
+          )
+          if (blocked) throw new ApiError('This email is still sending.', 409)
+          mailbox.hidden = mailbox.hidden.filter((row) => !ids.includes(row.id))
+          return { ok: true }
+        }
         if (request.method === 'GET' && request.path === '/admin/emails/drafts')
           return [draft, scheduled]
         if (request.method === 'GET' && request.path === '/admin/courses') {
@@ -347,5 +429,46 @@ describe('emails page', () => {
       screen.getByRole('button', { name: 'Resend to failed (1)' }),
     ).toBeInTheDocument()
     expect(screen.getByText(/To: All paid students \(50\)/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide' })).toBeInTheDocument()
+  })
+
+  it('hides sent mail, then unhides or deletes it from Hidden', async () => {
+    const user = userEvent.setup()
+    renderEmails()
+
+    expect(await screen.findAllByRole('button', { name: 'Hide' })).toHaveLength(2)
+    await user.click(screen.getByRole('checkbox', { name: 'Select You are in' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Select Bring a laptop' }))
+    await user.click(screen.getByRole('button', { name: 'Hide selected (2)' }))
+
+    expect(await screen.findByText('Nothing sent yet')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Hidden/ }))
+    const joining = (await screen.findByText('Your joining link')).closest('li')
+    if (!joining) throw new Error('Hidden row is missing')
+    expect(screen.getByText('Still going')).toBeInTheDocument()
+    expect(within(joining).getByRole('button', { name: 'Unhide' })).toBeInTheDocument()
+
+    await user.click(within(joining).getByRole('button', { name: 'Delete' }))
+    expect(
+      await screen.findByText(
+        "Delete this email forever? This can't be undone. People who already got it will still have it in their inbox.",
+      ),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete forever' }))
+    expect(await screen.findByText('Bring a laptop')).toBeInTheDocument()
+    expect(screen.queryByText('Your joining link')).not.toBeInTheDocument()
+
+    const sending = screen.getByText('Still going').closest('li')
+    if (!sending) throw new Error('Sending row is missing')
+    await user.click(within(sending).getByRole('button', { name: 'Delete' }))
+    await user.click(await screen.findByRole('button', { name: 'Delete forever' }))
+    expect(await screen.findByText('This email is still sending.')).toBeInTheDocument()
+    expect(screen.getByText('Still going')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Keep it' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Select Still going' }))
+    await user.click(screen.getByRole('button', { name: 'Unhide selected' }))
+    await user.click(screen.getByRole('button', { name: /^Sent/ }))
+    expect(await screen.findByText('Still going')).toBeInTheDocument()
   })
 })
