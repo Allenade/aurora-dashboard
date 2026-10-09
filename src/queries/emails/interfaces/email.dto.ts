@@ -83,6 +83,7 @@ export type Suppression = {
 
 export type RecipientPreview = {
   count: number
+  notInSystem?: number
   sample: Array<{
     email: string
     name: string
@@ -143,6 +144,7 @@ export type SentRecipient = {
   attempts: number
   lastError: string | null
   resendId: string | null
+  inSystem: boolean
 }
 
 export type SentEmailDetail = SentEmail & {

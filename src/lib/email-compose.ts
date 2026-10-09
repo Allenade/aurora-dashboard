@@ -35,6 +35,50 @@ export function studentChip(enrollmentId: string, name: string): Chip {
   return { selector: `student:${enrollmentId}`, label: name || 'One student' }
 }
 
+export function outsideChip(email: string): Chip {
+  const trimmed = email.trim()
+  return { selector: `email:${trimmed.toLowerCase()}`, label: trimmed }
+}
+
+export function isOutsideSelector(selector: string) {
+  return selector.startsWith('email:')
+}
+
+/** A normal mailbox address. Spaces and a missing domain are not addresses. */
+export function isEmailAddress(value: string) {
+  const email = value.trim()
+  if (email.length < 3 || email.length > 254) return false
+  if (email.includes('..')) return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)
+}
+
+/** Paste of several addresses. A single name or one address stays in the field. */
+export function splitAddressPaste(raw: string) {
+  if (!raw.includes('@')) return null
+  const parts = raw
+    .split(/[\s,;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  return parts.length > 1 ? parts : null
+}
+
+/** Comma or semicolon finishes the address being typed. */
+export function takeCommittedAddresses(value: string) {
+  if (!/[,;]/.test(value)) return null
+  const parts = value.split(/[,;]/)
+  const rest = parts.pop() ?? ''
+  return {
+    ready: parts.map((part) => part.trim()).filter(Boolean),
+    rest,
+  }
+}
+
+export function invalidAddressNote(invalid: string[]) {
+  if (invalid.length === 0) return null
+  if (invalid.length === 1) return `${invalid[0]} is not an email address.`
+  return `These are not email addresses: ${invalid.join(', ')}.`
+}
+
 export function presetAgeChips(): Chip[] {
   return [ageChip('13-17', 'Ages 13–17'), ageChip('18+', 'Ages 18+')]
 }
@@ -75,6 +119,10 @@ export function selectorLabel(selector: string, courseNames: Map<string, string>
     const value = selector.slice('student:'.length)
     if (value.includes('@')) return value
     return 'One student'
+  }
+  if (selector.startsWith('email:')) {
+    const address = selector.slice('email:'.length).trim()
+    return address || 'An email address'
   }
   return 'Someone'
 }
@@ -140,9 +188,19 @@ export function draftName(chips: Chip[], subject: string) {
   return (label || subject || 'Email').slice(0, 160)
 }
 
-export function peopleLine(count: number) {
+export function peopleLine(count: number, notInSystem = 0) {
   const n = count.toLocaleString('en-NG')
-  return count === 1 ? 'This will go to 1 person' : `This will go to ${n} people`
+  const base = count === 1 ? 'This will go to 1 person' : `This will go to ${n} people`
+  if (notInSystem < 1) return base
+  if (notInSystem === 1) return `${base}, including 1 who is not a student`
+  return `${base}, including ${notInSystem.toLocaleString('en-NG')} who are not students`
+}
+
+export function outsideCountLine(notInSystem: number) {
+  if (notInSystem === 1) return '1 is not a student.'
+  if (notInSystem > 1)
+    return `${notInSystem.toLocaleString('en-NG')} are not students.`
+  return null
 }
 
 export function sendQuestion(count: number) {

@@ -411,10 +411,13 @@ function SentDetail({
                       >
                         <span className="min-w-0">
                           <span className="block truncate">
-                            {person.name || 'Student'}
+                            {person.name || person.email}
                           </span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {person.email}
+                            {person.name ? person.email : null}
+                            {person.inSystem === false
+                              ? `${person.name ? ' · ' : ''}Not a student`
+                              : null}
                           </span>
                         </span>
                         {outcome === 'failed' ? (
