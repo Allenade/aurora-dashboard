@@ -459,6 +459,12 @@ describe('courses page', () => {
     expect(
       within(sheet).queryByLabelText('Course picture file'),
     ).not.toBeInTheDocument()
+    expect(
+      within(sheet).getByText('You can add links after the course is created.'),
+    ).toBeInTheDocument()
+    expect(
+      within(sheet).queryByRole('button', { name: '+ Add another link' }),
+    ).not.toBeInTheDocument()
 
     await user.type(within(sheet).getByLabelText('Slug'), 'new-lab')
     await user.type(within(sheet).getByLabelText('Name'), 'New lab')
@@ -470,6 +476,10 @@ describe('courses page', () => {
     expect(
       within(ready).queryByText(/after the course is created/i),
     ).not.toBeInTheDocument()
+    expect(within(ready).getByRole('heading', { name: 'Links' })).toBeInTheDocument()
+    expect(
+      within(ready).getByRole('button', { name: '+ Add another link' }),
+    ).toBeInTheDocument()
   })
 
   it('shows the picture and syllabus to a manager without upload controls', async () => {
@@ -491,6 +501,91 @@ describe('courses page', () => {
     expect(
       within(dialog).queryByRole('button', { name: 'Save week-by-week topics' }),
     ).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Links' })).toBeInTheDocument()
+    expect(within(dialog).getByText('No links yet.')).toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('button', { name: '+ Add another link' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('saves course links in the order they are shown', async () => {
+    const user = userEvent.setup()
+    renderCourses('super_admin')
+    await user.click(await screen.findByRole('cell', { name: 'Robotics' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Robotics' })
+    expect(within(dialog).getByText('No links yet.')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: '+ Add another link' }))
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Button name 1' }), {
+      target: { value: 'Course structure' },
+    })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Link address 1' }), {
+      target: { value: ' https://docs.google.com/document/d/abc ' },
+    })
+    const structure = within(dialog).getByRole('link', { name: 'Open Course structure' })
+    expect(structure).toHaveAttribute('href', 'https://docs.google.com/document/d/abc')
+    expect(structure).toHaveAttribute('target', '_blank')
+
+    await user.click(within(dialog).getByRole('button', { name: '+ Add another link' }))
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Button name 2' }), {
+      target: { value: 'Intro video' },
+    })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Link address 2' }), {
+      target: { value: 'https://youtube.com/watch?v=abc' },
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Move Intro video up' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(api).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'PATCH',
+        path: '/admin/courses/course-open',
+        body: expect.objectContaining({
+          links: [
+            { label: 'Intro video', url: 'https://youtube.com/watch?v=abc' },
+            { label: 'Course structure', url: 'https://docs.google.com/document/d/abc' },
+          ],
+        }),
+      }),
+    )
+
+    await user.click(within(dialog).getByRole('button', { name: 'Remove Intro video' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Remove Course structure' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(api).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'PATCH',
+        path: '/admin/courses/course-open',
+        body: expect.objectContaining({ links: [] }),
+      }),
+    )
+  })
+
+  it('does not save a link that is missing a name or a full https address', async () => {
+    const user = userEvent.setup()
+    renderCourses('super_admin')
+    await user.click(await screen.findByRole('cell', { name: 'Robotics' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Robotics' })
+
+    await user.click(within(dialog).getByRole('button', { name: '+ Add another link' }))
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Link address 1' }), {
+      target: { value: 'http://docs.google.com/document/d/abc' },
+    })
+    expect(within(dialog).getByText('Add a name for this button.')).toBeInTheDocument()
+    expect(within(dialog).queryByRole('link', { name: /Open/ })).not.toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Button name 1' }), {
+      target: { value: 'Course structure' },
+    })
+    expect(within(dialog).getByText('Use a full https:// link.')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(within(dialog).getByText('Check the links.')).toBeInTheDocument()
+    expect(
+      api.mock.calls.some(
+        (call) =>
+          call[0]?.method === 'PATCH' && call[0]?.path === '/admin/courses/course-open',
+      ),
+    ).toBe(false)
   })
 })
 

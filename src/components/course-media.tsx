@@ -50,6 +50,12 @@ export function CourseMediaLater() {
           You can add a syllabus after the course is created.
         </p>
       </section>
+      <section className="space-y-1 rounded-md border border-border px-3 py-3">
+        <h3 className="text-sm font-medium">Links</h3>
+        <p className="text-sm text-muted-foreground">
+          You can add links after the course is created.
+        </p>
+      </section>
     </div>
   )
 }

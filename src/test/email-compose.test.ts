@@ -7,7 +7,9 @@ import {
   addPeopleLabel,
   courseChip,
   customAgeChip,
+  deleteForeverPrompt,
   draftName,
+  hideSelectedLabel,
   htmlToText,
   invalidAddressNote,
   isEmailAddress,
@@ -78,6 +80,11 @@ describe('email compose', () => {
       'This will go to 13 people, including 2 who are not students',
     )
     expect(sendQuestion(48)).toBe('Send to 48 people?')
+    expect(deleteForeverPrompt(1)).toBe(
+      "Delete this email forever? This can't be undone. People who already got it will still have it in their inbox.",
+    )
+    expect(deleteForeverPrompt(2)).toContain('Delete these emails forever?')
+    expect(hideSelectedLabel(2)).toBe('Hide selected (2)')
     expect(outsideChip('Tee@Gmail.com')).toEqual({
       selector: 'email:tee@gmail.com',
       label: 'Tee@Gmail.com',

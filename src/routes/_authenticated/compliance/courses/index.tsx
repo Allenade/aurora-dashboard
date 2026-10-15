@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Can, useAbility, useSessionUser } from '@/components/ability'
+import { CourseLinksEditor } from '@/components/course-links'
 import {
   CourseMediaLater,
   CourseMediaSections,
@@ -27,6 +28,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { SimpleHtmlEditor } from '@/components/simple-html-editor'
 import { storedHtml } from '@/lib/email-compose'
 import { allows, isSuperAdmin } from '@/lib/ability'
+import {
+  draftsFromLinks,
+  LINKS_FORM_ERROR,
+  prepareCourseLinks,
+  type CourseLinkDraft,
+} from '@/lib/course-links'
 import { courseStatusLabel, editableCourseStatus } from '@/lib/course-status'
 import {
   coursePriceSet,
@@ -39,6 +46,7 @@ import { ApiError, api } from '@/queries/api'
 import type {
   AdminCourse,
   AdminCourseDetail,
+  CourseLink,
   CourseStatus,
   UpdateCourseBody,
   UpsertCourseBody,
@@ -350,6 +358,7 @@ function CourseForm({
     editableCourseStatus(course.status),
   )
   const [afterPayment, setAfterPayment] = useState(course.afterPaymentEmail ?? '')
+  const [links, setLinks] = useState<CourseLinkDraft[]>(() => draftsFromLinks(course.links))
   const [error, setError] = useState<string | null>(null)
   const client = useQueryClient()
 
@@ -381,7 +390,7 @@ function CourseForm({
       toast.error(err instanceof ApiError ? err.message : 'Could not archive'),
   })
 
-  function bodyFor(nextStatus: CourseStatus): UpdateCourseBody {
+  function bodyFor(nextStatus: CourseStatus, nextLinks: CourseLink[]): UpdateCourseBody {
     return {
       name,
       description,
@@ -391,7 +400,18 @@ function CourseForm({
       seatCap: seatCap.trim() ? Number(seatCap) : null,
       enrollmentCutoff: cutoff ? new Date(cutoff).toISOString() : null,
       afterPaymentEmail: storedHtml(afterPayment),
+      links: nextLinks,
     }
+  }
+
+  function submit(nextStatus: CourseStatus) {
+    const prepared = prepareCourseLinks(links)
+    if (!prepared.ok) {
+      setError(LINKS_FORM_ERROR)
+      return
+    }
+    setError(null)
+    save.mutate(bodyFor(nextStatus, prepared.links))
   }
 
   const priced =
@@ -428,6 +448,7 @@ function CourseForm({
         syllabus={course.syllabus}
         onChanged={onChanged}
       />
+      <CourseLinksEditor value={links} onChange={setLinks} />
       <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
         <div>
           <p className="text-sm">Free</p>
@@ -488,13 +509,13 @@ function CourseForm({
           <Button
             variant="outline"
             disabled={save.isPending}
-            onClick={() => save.mutate(bodyFor(status))}
+            onClick={() => submit(status)}
           >
             Save
           </Button>
           <Button
             disabled={save.isPending}
-            onClick={() => save.mutate(bodyFor('open'))}
+            onClick={() => submit('open')}
           >
             Publish
           </Button>
@@ -543,6 +564,64 @@ function CourseForm({
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+function CreatedCourseFollowUp({
+  course,
+  onChanged,
+}: {
+  course: AdminCourse
+  onChanged: () => void
+}) {
+  const [links, setLinks] = useState<CourseLinkDraft[]>(() => draftsFromLinks(course.links))
+  const [error, setError] = useState<string | null>(null)
+  const save = useMutation({
+    mutationFn: (nextLinks: CourseLink[]) =>
+      api<AdminCourse>({
+        method: 'PATCH',
+        path: `/admin/courses/${course.id}`,
+        body: { links: nextLinks },
+      }),
+    onSuccess: () => {
+      setError(null)
+      toast.success('Links saved')
+      onChanged()
+    },
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : 'Could not save the links'),
+  })
+
+  function submit() {
+    const prepared = prepareCourseLinks(links)
+    if (!prepared.ok) {
+      setError(LINKS_FORM_ERROR)
+      return
+    }
+    setError(null)
+    save.mutate(prepared.links)
+  }
+
+  return (
+    <div className="space-y-3 px-4 pb-6">
+      <p className="text-sm text-muted-foreground">
+        Draft created. You can add a picture, a syllabus, and links now.
+      </p>
+      <CourseMediaSections
+        courseId={course.id}
+        courseName={course.name}
+        imageUrl={course.imageUrl}
+        syllabus={course.syllabus}
+        onChanged={onChanged}
+      />
+      <CourseLinksEditor value={links} onChange={setLinks} />
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <Can action="update" subject="course">
+        <Button type="button" variant="outline" disabled={save.isPending} onClick={submit}>
+          Save links
+        </Button>
+      </Can>
     </div>
   )
 }
@@ -597,18 +676,7 @@ function CreateCourseSheet({
           <SheetTitle>{created?.name || 'New course'}</SheetTitle>
         </SheetHeader>
         {created ? (
-          <div className="space-y-3 px-4 pb-6">
-            <p className="text-sm text-muted-foreground">
-              Draft created. You can add a picture and a syllabus now.
-            </p>
-            <CourseMediaSections
-              courseId={created.id}
-              courseName={created.name}
-              imageUrl={created.imageUrl}
-              syllabus={created.syllabus}
-              onChanged={onCreated}
-            />
-          </div>
+          <CreatedCourseFollowUp course={created} onChanged={onCreated} />
         ) : (
           <form
             className="space-y-3 px-4"
