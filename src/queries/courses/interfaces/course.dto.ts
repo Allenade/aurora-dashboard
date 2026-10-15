@@ -7,6 +7,12 @@ export type CourseSyllabus = {
   text: string | null
 }
 
+/** A button on the public course page. The link opens in a new tab. */
+export type CourseLink = {
+  label: string
+  url: string
+}
+
 export type CoursePriceHistoryEntry = {
   id: string
   changedBy: string | null
@@ -44,6 +50,8 @@ export type AdminCourse = {
   syllabus: CourseSyllabus
   /** Message students get after they pay. Empty when there isn't one. */
   afterPaymentEmail?: string | null
+  /** Buttons shown on the website. Empty when the course has none. */
+  links?: CourseLink[]
 }
 
 export type AdminCourseDetail = AdminCourse & {
@@ -65,6 +73,7 @@ export type UpsertCourseBody = {
   sortOrder?: number
   cohort?: string | null
   afterPaymentEmail?: string | null
+  links?: CourseLink[]
 }
 
 export type UpdateCourseBody = Partial<Omit<UpsertCourseBody, 'slug'>>
