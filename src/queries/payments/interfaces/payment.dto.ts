@@ -34,6 +34,11 @@ export type Enrollment = {
   amount: number
   currency: string
   priceSnapshot: PriceLine[]
+  listAmount?: number | null
+  pricingType?: 'full' | 'discount' | 'free'
+  inviteId?: string | null
+  inviteCode?: string | null
+  discountLabel?: string | null
   paymentStatus: PaymentStatus
   paystackReference: string | null
   authorizationUrl: string | null
