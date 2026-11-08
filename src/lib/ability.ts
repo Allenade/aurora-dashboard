@@ -1,18 +1,7 @@
-import {
-  AbilityBuilder,
-  createMongoAbility,
-  type MongoAbility,
-} from '@casl/ability'
+import { AbilityBuilder, createMongoAbility, type MongoAbility } from '@casl/ability'
 import type { SessionRule, SessionUser } from '@/queries/auth/interfaces/session.dto'
 
-export const ACTIONS = [
-  'read',
-  'list',
-  'create',
-  'update',
-  'delete',
-  'manage',
-] as const
+export const ACTIONS = ['read', 'list', 'create', 'update', 'delete', 'manage'] as const
 
 /** Resources from the Core 3.0 permission enum. */
 export const SUBJECTS = [
@@ -52,11 +41,7 @@ export function defineAbilityFor(user: SessionUser | null): AppAbility {
   return build()
 }
 
-export function allows(
-  ability: AppAbility,
-  action: AppAction,
-  subject: AppSubject,
-) {
+export function allows(ability: AppAbility, action: AppAction, subject: AppSubject) {
   if (ability.can('manage', 'all')) return true
   if (ability.can('manage', subject)) return true
   return ability.can(action, subject)

@@ -17,6 +17,16 @@ export const queryKeys = {
   users: {
     all: ['users'] as const,
   },
+  people: {
+    list: (query: Record<string, string | number | undefined>) =>
+      ['people', query] as const,
+    detail: (id: string) => ['people', id] as const,
+  },
+  invites: {
+    list: (query: Record<string, string | number | undefined>) =>
+      ['invites', query] as const,
+    detail: (id: string) => ['invites', id] as const,
+  },
   enrollments: {
     list: (query: Record<string, string | number | undefined>) =>
       ['enrollments', query] as const,

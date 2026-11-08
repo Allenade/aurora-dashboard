@@ -22,8 +22,10 @@ import { Route as AuthenticatedComplianceControlsIndexRouteImport } from './rout
 import { Route as AuthenticatedComplianceCoursesIndexRouteImport } from './routes/_authenticated/compliance/courses/index'
 import { Route as AuthenticatedComplianceDataRequestsIndexRouteImport } from './routes/_authenticated/compliance/data-requests/index'
 import { Route as AuthenticatedComplianceEmailsIndexRouteImport } from './routes/_authenticated/compliance/emails/index'
+import { Route as AuthenticatedComplianceInvitesIndexRouteImport } from './routes/_authenticated/compliance/invites/index'
 import { Route as AuthenticatedComplianceMinorsIndexRouteImport } from './routes/_authenticated/compliance/minors/index'
 import { Route as AuthenticatedCompliancePaymentsIndexRouteImport } from './routes/_authenticated/compliance/payments/index'
+import { Route as AuthenticatedCompliancePeopleIndexRouteImport } from './routes/_authenticated/compliance/people/index'
 import { Route as AuthenticatedComplianceRefundsIndexRouteImport } from './routes/_authenticated/compliance/refunds/index'
 import { Route as AuthenticatedComplianceSettingsIndexRouteImport } from './routes/_authenticated/compliance/settings/index'
 import { Route as AuthenticatedComplianceUsersIndexRouteImport } from './routes/_authenticated/compliance/users/index'
@@ -101,6 +103,12 @@ const AuthenticatedComplianceEmailsIndexRoute =
     path: '/emails/',
     getParentRoute: () => AuthenticatedComplianceRouteRoute,
   } as any)
+const AuthenticatedComplianceInvitesIndexRoute =
+  AuthenticatedComplianceInvitesIndexRouteImport.update({
+    id: '/invites/',
+    path: '/invites/',
+    getParentRoute: () => AuthenticatedComplianceRouteRoute,
+  } as any)
 const AuthenticatedComplianceMinorsIndexRoute =
   AuthenticatedComplianceMinorsIndexRouteImport.update({
     id: '/minors/',
@@ -111,6 +119,12 @@ const AuthenticatedCompliancePaymentsIndexRoute =
   AuthenticatedCompliancePaymentsIndexRouteImport.update({
     id: '/payments/',
     path: '/payments/',
+    getParentRoute: () => AuthenticatedComplianceRouteRoute,
+  } as any)
+const AuthenticatedCompliancePeopleIndexRoute =
+  AuthenticatedCompliancePeopleIndexRouteImport.update({
+    id: '/people/',
+    path: '/people/',
     getParentRoute: () => AuthenticatedComplianceRouteRoute,
   } as any)
 const AuthenticatedComplianceRefundsIndexRoute =
@@ -145,8 +159,10 @@ export interface FileRoutesByFullPath {
   '/compliance/courses/': typeof AuthenticatedComplianceCoursesIndexRoute
   '/compliance/data-requests/': typeof AuthenticatedComplianceDataRequestsIndexRoute
   '/compliance/emails/': typeof AuthenticatedComplianceEmailsIndexRoute
+  '/compliance/invites/': typeof AuthenticatedComplianceInvitesIndexRoute
   '/compliance/minors/': typeof AuthenticatedComplianceMinorsIndexRoute
   '/compliance/payments/': typeof AuthenticatedCompliancePaymentsIndexRoute
+  '/compliance/people/': typeof AuthenticatedCompliancePeopleIndexRoute
   '/compliance/refunds/': typeof AuthenticatedComplianceRefundsIndexRoute
   '/compliance/settings/': typeof AuthenticatedComplianceSettingsIndexRoute
   '/compliance/users/': typeof AuthenticatedComplianceUsersIndexRoute
@@ -163,8 +179,10 @@ export interface FileRoutesByTo {
   '/compliance/courses': typeof AuthenticatedComplianceCoursesIndexRoute
   '/compliance/data-requests': typeof AuthenticatedComplianceDataRequestsIndexRoute
   '/compliance/emails': typeof AuthenticatedComplianceEmailsIndexRoute
+  '/compliance/invites': typeof AuthenticatedComplianceInvitesIndexRoute
   '/compliance/minors': typeof AuthenticatedComplianceMinorsIndexRoute
   '/compliance/payments': typeof AuthenticatedCompliancePaymentsIndexRoute
+  '/compliance/people': typeof AuthenticatedCompliancePeopleIndexRoute
   '/compliance/refunds': typeof AuthenticatedComplianceRefundsIndexRoute
   '/compliance/settings': typeof AuthenticatedComplianceSettingsIndexRoute
   '/compliance/users': typeof AuthenticatedComplianceUsersIndexRoute
@@ -184,8 +202,10 @@ export interface FileRoutesById {
   '/_authenticated/compliance/courses/': typeof AuthenticatedComplianceCoursesIndexRoute
   '/_authenticated/compliance/data-requests/': typeof AuthenticatedComplianceDataRequestsIndexRoute
   '/_authenticated/compliance/emails/': typeof AuthenticatedComplianceEmailsIndexRoute
+  '/_authenticated/compliance/invites/': typeof AuthenticatedComplianceInvitesIndexRoute
   '/_authenticated/compliance/minors/': typeof AuthenticatedComplianceMinorsIndexRoute
   '/_authenticated/compliance/payments/': typeof AuthenticatedCompliancePaymentsIndexRoute
+  '/_authenticated/compliance/people/': typeof AuthenticatedCompliancePeopleIndexRoute
   '/_authenticated/compliance/refunds/': typeof AuthenticatedComplianceRefundsIndexRoute
   '/_authenticated/compliance/settings/': typeof AuthenticatedComplianceSettingsIndexRoute
   '/_authenticated/compliance/users/': typeof AuthenticatedComplianceUsersIndexRoute
@@ -205,8 +225,10 @@ export interface FileRouteTypes {
     | '/compliance/courses/'
     | '/compliance/data-requests/'
     | '/compliance/emails/'
+    | '/compliance/invites/'
     | '/compliance/minors/'
     | '/compliance/payments/'
+    | '/compliance/people/'
     | '/compliance/refunds/'
     | '/compliance/settings/'
     | '/compliance/users/'
@@ -223,8 +245,10 @@ export interface FileRouteTypes {
     | '/compliance/courses'
     | '/compliance/data-requests'
     | '/compliance/emails'
+    | '/compliance/invites'
     | '/compliance/minors'
     | '/compliance/payments'
+    | '/compliance/people'
     | '/compliance/refunds'
     | '/compliance/settings'
     | '/compliance/users'
@@ -243,8 +267,10 @@ export interface FileRouteTypes {
     | '/_authenticated/compliance/courses/'
     | '/_authenticated/compliance/data-requests/'
     | '/_authenticated/compliance/emails/'
+    | '/_authenticated/compliance/invites/'
     | '/_authenticated/compliance/minors/'
     | '/_authenticated/compliance/payments/'
+    | '/_authenticated/compliance/people/'
     | '/_authenticated/compliance/refunds/'
     | '/_authenticated/compliance/settings/'
     | '/_authenticated/compliance/users/'
@@ -350,6 +376,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedComplianceEmailsIndexRouteImport
       parentRoute: typeof AuthenticatedComplianceRouteRoute
     }
+    '/_authenticated/compliance/invites/': {
+      id: '/_authenticated/compliance/invites/'
+      path: '/invites'
+      fullPath: '/compliance/invites/'
+      preLoaderRoute: typeof AuthenticatedComplianceInvitesIndexRouteImport
+      parentRoute: typeof AuthenticatedComplianceRouteRoute
+    }
     '/_authenticated/compliance/minors/': {
       id: '/_authenticated/compliance/minors/'
       path: '/minors'
@@ -362,6 +395,13 @@ declare module '@tanstack/react-router' {
       path: '/payments'
       fullPath: '/compliance/payments/'
       preLoaderRoute: typeof AuthenticatedCompliancePaymentsIndexRouteImport
+      parentRoute: typeof AuthenticatedComplianceRouteRoute
+    }
+    '/_authenticated/compliance/people/': {
+      id: '/_authenticated/compliance/people/'
+      path: '/people'
+      fullPath: '/compliance/people/'
+      preLoaderRoute: typeof AuthenticatedCompliancePeopleIndexRouteImport
       parentRoute: typeof AuthenticatedComplianceRouteRoute
     }
     '/_authenticated/compliance/refunds/': {
@@ -397,8 +437,10 @@ interface AuthenticatedComplianceRouteRouteChildren {
   AuthenticatedComplianceCoursesIndexRoute: typeof AuthenticatedComplianceCoursesIndexRoute
   AuthenticatedComplianceDataRequestsIndexRoute: typeof AuthenticatedComplianceDataRequestsIndexRoute
   AuthenticatedComplianceEmailsIndexRoute: typeof AuthenticatedComplianceEmailsIndexRoute
+  AuthenticatedComplianceInvitesIndexRoute: typeof AuthenticatedComplianceInvitesIndexRoute
   AuthenticatedComplianceMinorsIndexRoute: typeof AuthenticatedComplianceMinorsIndexRoute
   AuthenticatedCompliancePaymentsIndexRoute: typeof AuthenticatedCompliancePaymentsIndexRoute
+  AuthenticatedCompliancePeopleIndexRoute: typeof AuthenticatedCompliancePeopleIndexRoute
   AuthenticatedComplianceRefundsIndexRoute: typeof AuthenticatedComplianceRefundsIndexRoute
   AuthenticatedComplianceSettingsIndexRoute: typeof AuthenticatedComplianceSettingsIndexRoute
   AuthenticatedComplianceUsersIndexRoute: typeof AuthenticatedComplianceUsersIndexRoute
@@ -421,10 +463,14 @@ const AuthenticatedComplianceRouteRouteChildren: AuthenticatedComplianceRouteRou
       AuthenticatedComplianceDataRequestsIndexRoute,
     AuthenticatedComplianceEmailsIndexRoute:
       AuthenticatedComplianceEmailsIndexRoute,
+    AuthenticatedComplianceInvitesIndexRoute:
+      AuthenticatedComplianceInvitesIndexRoute,
     AuthenticatedComplianceMinorsIndexRoute:
       AuthenticatedComplianceMinorsIndexRoute,
     AuthenticatedCompliancePaymentsIndexRoute:
       AuthenticatedCompliancePaymentsIndexRoute,
+    AuthenticatedCompliancePeopleIndexRoute:
+      AuthenticatedCompliancePeopleIndexRoute,
     AuthenticatedComplianceRefundsIndexRoute:
       AuthenticatedComplianceRefundsIndexRoute,
     AuthenticatedComplianceSettingsIndexRoute:
@@ -460,3 +506,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

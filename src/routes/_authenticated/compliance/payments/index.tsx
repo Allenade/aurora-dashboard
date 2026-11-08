@@ -223,6 +223,11 @@ function PaymentsPage() {
         <span className="font-mono">{formatNaira(row.original.amount)}</span>
       ),
     },
+    {
+      id: 'pricing',
+      header: 'Type',
+      cell: ({ row }) => pricingLabel(row.original),
+    },
     { accessorKey: 'paymentStatus', header: 'Status' },
     {
       id: 'email',
@@ -562,6 +567,12 @@ function namesFor(tracks: Array<[string, string]>, slug: string) {
   return tracks.find(([id]) => id === slug)?.[1] ?? slug
 }
 
+function pricingLabel(row: Enrollment) {
+  if (row.pricingType === 'free') return row.discountLabel ?? 'Free invite'
+  if (row.pricingType === 'discount') return row.discountLabel ?? 'Discount'
+  return 'Full'
+}
+
 function useDebounced(value: string, delay = 300) {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
@@ -677,6 +688,15 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
                 <p className="text-warn">Needs review · paid, not verified</p>
               ) : null}
               <p className="font-mono text-lg">{formatNaira(row.amount)}</p>
+              {row.listAmount != null && row.listAmount !== row.amount ? (
+                <p className="font-mono text-xs text-muted-foreground">
+                  List {formatNaira(row.listAmount)}
+                </p>
+              ) : null}
+              <p>{pricingLabel(row)}</p>
+              {row.inviteCode ? (
+                <p className="font-mono text-xs">Invite {row.inviteCode}</p>
+              ) : null}
               <p className="font-mono text-xs text-muted-foreground">
                 {row.paystackReference}
               </p>
