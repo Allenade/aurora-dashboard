@@ -58,7 +58,7 @@ export const NAV = [
   },
   {
     to: '/compliance/invites',
-    label: 'Invite links',
+    label: 'Coupons',
     icon: Link01Icon,
     exact: false,
     badgeKey: null,

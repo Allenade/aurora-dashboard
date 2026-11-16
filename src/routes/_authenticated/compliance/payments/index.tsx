@@ -568,7 +568,7 @@ function namesFor(tracks: Array<[string, string]>, slug: string) {
 }
 
 function pricingLabel(row: Enrollment) {
-  if (row.pricingType === 'free') return row.discountLabel ?? 'Free invite'
+  if (row.pricingType === 'free') return row.discountLabel ?? 'Free coupon'
   if (row.pricingType === 'discount') return row.discountLabel ?? 'Discount'
   return 'Full'
 }
@@ -695,7 +695,7 @@ function EnrollmentDrawer({ id, onClose }: { id: string | null; onClose: () => v
               ) : null}
               <p>{pricingLabel(row)}</p>
               {row.inviteCode ? (
-                <p className="font-mono text-xs">Invite {row.inviteCode}</p>
+                <p className="font-mono text-xs">Coupon {row.inviteCode}</p>
               ) : null}
               <p className="font-mono text-xs text-muted-foreground">
                 {row.paystackReference}

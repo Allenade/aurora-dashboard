@@ -40,6 +40,7 @@ export type InvitePage = {
 }
 
 export type CreateInviteBody = {
+  code?: string
   label?: string
   personId?: string
   lockToPerson?: boolean
