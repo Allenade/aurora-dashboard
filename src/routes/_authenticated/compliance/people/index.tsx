@@ -49,7 +49,7 @@ function PeoplePage() {
         path: `/admin/enter-first/people/${id}`,
       }),
     onSuccess: (_data, id) => {
-      toast.success('Person and their invite links removed')
+      toast.success('Person and their coupons removed')
       if (selected?.id === id) setSelected(null)
       void queryClient.invalidateQueries({ queryKey: ['people'] })
       void queryClient.invalidateQueries({ queryKey: ['invites'] })
@@ -61,7 +61,7 @@ function PeoplePage() {
   function confirmRemove(person: Person) {
     if (
       confirm(
-        `Remove ${person.firstName} ${person.lastName} and their invite links? Paid enrollments stay.`,
+        `Remove ${person.firstName} ${person.lastName} and their coupons? Paid enrollments stay.`,
       )
     ) {
       remove.mutate(person.id)
@@ -132,7 +132,7 @@ function PeoplePage() {
       <PageHeader
         eyebrow="OFFERS"
         title="People"
-        description="Contacts you send special invite links to. Create a person, then open Invite links to generate a discount or free URL."
+        description="Contacts for locked coupons. Create a person only when a coupon should be tied to one email."
         actions={
           <Can action="create" subject="enter_first">
             <Button onClick={() => setCreating(true)}>Add person</Button>
@@ -374,7 +374,7 @@ function PersonEditForm({
             to="/compliance/invites"
             className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-sm hover:bg-surface"
           >
-            Create invite
+            Create coupon
           </Link>
           {onRemove ? (
             <Button variant="outline" disabled={removing} onClick={onRemove}>

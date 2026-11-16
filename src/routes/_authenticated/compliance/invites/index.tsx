@@ -56,7 +56,7 @@ function InvitesPage() {
         path: `/admin/enter-first/invites/${id}`,
       }),
     onSuccess: (_data, id) => {
-      toast.success('Invite link removed')
+      toast.success('Coupon removed')
       if (selected?.id === id) setSelected(null)
       void queryClient.invalidateQueries({ queryKey: ['invites'] })
     },
@@ -70,7 +70,7 @@ function InvitesPage() {
       : invite.code
     if (
       confirm(
-        `Remove invite ${who}? The enroll link will stop working. Paid enrollments stay.`,
+        `Remove coupon ${who}? The code will stop working on the website. Paid enrollments stay.`,
       )
     ) {
       remove.mutate(invite.id)
@@ -94,7 +94,7 @@ function InvitesPage() {
       cell: ({ row }) =>
         row.original.person
           ? `${row.original.person.firstName} ${row.original.person.lastName}`
-          : 'Open link',
+          : 'Open coupon',
     },
     {
       id: 'offer',
@@ -132,8 +132,8 @@ function InvitesPage() {
             variant="outline"
             onClick={(event) => {
               event.stopPropagation()
-              void navigator.clipboard.writeText(row.original.enrollUrl)
-              toast.success('Invite link copied')
+              void navigator.clipboard.writeText(row.original.code)
+              toast.success('Coupon code copied')
             }}
           >
             Copy
@@ -160,11 +160,11 @@ function InvitesPage() {
     <div>
       <PageHeader
         eyebrow="OFFERS"
-        title="Invite links"
-        description="Generate discount or free enroll URLs. The website charges the catalogue price unless someone opens one of these links."
+        title="Coupons"
+        description="Create a code and set the percent off. Students type it on the website. 100% or Free charges ₦0 and skips Paystack."
         actions={
           <Can action="create" subject="enter_first">
-            <Button onClick={() => setCreating(true)}>New invite</Button>
+            <Button onClick={() => setCreating(true)}>New coupon</Button>
           </Can>
         }
       />
@@ -172,7 +172,7 @@ function InvitesPage() {
         <Input
           value={q}
           onChange={(event) => setQ(event.target.value)}
-          placeholder="Search code or label"
+          placeholder="Search coupon code or label"
           className="max-w-sm"
         />
       </div>
@@ -190,8 +190,8 @@ function InvitesPage() {
             />
           ) : (
             <EmptyState
-              title="No invite links yet"
-              body="Create a free or discounted link to send to a partner or selected student."
+              title="No coupons yet"
+              body="Create a code, set the percent (or Free), and students type it on Core 3.0 enroll."
             />
           )
         ) : null}
@@ -240,15 +240,16 @@ function CreateInviteSheet({
     queryFn: () => api<AdminCourse[]>({ method: 'GET', path: '/admin/courses' }),
   })
 
+  const [code, setCode] = useState('')
   const [label, setLabel] = useState('')
   const [personId, setPersonId] = useState('')
   const [lockToPerson, setLockToPerson] = useState(true)
-  const [offerType, setOfferType] = useState<InviteOfferType>('free')
-  const [discountPercent, setDiscountPercent] = useState('20')
+  const [offerType, setOfferType] = useState<InviteOfferType>('discount_percent')
+  const [discountPercent, setDiscountPercent] = useState('')
   const [discountAmount, setDiscountAmount] = useState('10000')
   const [trackScope, setTrackScope] = useState<InviteTrackScope>('all')
   const [trackSlugs, setTrackSlugs] = useState<string[]>([])
-  const [maxRedemptions, setMaxRedemptions] = useState('1')
+  const [maxRedemptions, setMaxRedemptions] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
   const [notes, setNotes] = useState('')
 
@@ -261,13 +262,13 @@ function CreateInviteSheet({
     mutationFn: (body: CreateInviteBody) =>
       api<Invite>({ method: 'POST', path: '/admin/enter-first/invites', body }),
     onSuccess: (invite) => {
-      toast.success('Invite created')
-      void navigator.clipboard.writeText(invite.enrollUrl)
-      toast.message('Link copied', { description: invite.enrollUrl })
+      toast.success('Coupon created')
+      void navigator.clipboard.writeText(invite.code)
+      toast.message('Code copied', { description: invite.code.toUpperCase() })
       onCreated()
     },
     onError: (error) =>
-      toast.error(error instanceof ApiError ? error.message : 'Could not create invite'),
+      toast.error(error instanceof ApiError ? error.message : 'Could not create coupon'),
   })
 
   function toggleTrack(slug: string) {
@@ -277,7 +278,19 @@ function CreateInviteSheet({
   }
 
   function submit() {
+    if (!code.trim()) {
+      toast.error('Enter a coupon code')
+      return
+    }
+    const percent = Number(discountPercent)
+    if (offerType === 'discount_percent') {
+      if (!Number.isInteger(percent) || percent < 1 || percent > 100) {
+        toast.error('Enter a whole percent from 1 to 100')
+        return
+      }
+    }
     const body: CreateInviteBody = {
+      code: code.trim(),
       label: label.trim() || undefined,
       personId: personId || undefined,
       lockToPerson: personId ? lockToPerson : false,
@@ -289,7 +302,7 @@ function CreateInviteSheet({
       notes: notes.trim() || undefined,
     }
     if (offerType === 'discount_percent') {
-      body.discountPercent = Number(discountPercent)
+      body.discountPercent = percent
     }
     if (offerType === 'discount_fixed') {
       body.discountAmount = Number(discountAmount)
@@ -301,14 +314,22 @@ function CreateInviteSheet({
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
       <SheetContent className="w-full overflow-y-auto bg-card sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>New invite</SheetTitle>
+          <SheetTitle>New coupon</SheetTitle>
         </SheetHeader>
         <div className="space-y-3 px-4 pb-6">
+          <Field label="Coupon code">
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="AURORA20"
+              autoCapitalize="characters"
+            />
+          </Field>
           <Field label="Label">
             <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="Partner — Ada"
+              placeholder="Launch 20% off"
             />
           </Field>
           <Field label="Person (optional)">
@@ -317,7 +338,7 @@ function CreateInviteSheet({
               value={personId}
               onChange={(e) => setPersonId(e.target.value)}
             >
-              <option value="">Open link — anyone</option>
+              <option value="">Anyone can use this code</option>
               {(people.data?.items ?? []).map((person) => (
                 <option key={person.id} value={person.id}>
                   {person.firstName} {person.lastName} · {person.email}
@@ -342,8 +363,8 @@ function CreateInviteSheet({
               value={offerType}
               onChange={(e) => setOfferType(e.target.value as InviteOfferType)}
             >
-              <option value="free">Free</option>
-              <option value="discount_percent">Percent discount</option>
+              <option value="discount_percent">Percent off</option>
+              <option value="free">Free (no payment)</option>
               <option value="discount_fixed">Fixed ₦ discount</option>
             </select>
           </Field>
@@ -353,6 +374,7 @@ function CreateInviteSheet({
                 inputMode="numeric"
                 value={discountPercent}
                 onChange={(e) => setDiscountPercent(e.target.value)}
+                placeholder="e.g. 10, 20, or 100"
               />
             </Field>
           ) : null}
@@ -408,7 +430,7 @@ function CreateInviteSheet({
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
           <Button disabled={create.isPending} onClick={submit}>
-            Create and copy link
+            Create and copy code
           </Button>
         </div>
       </SheetContent>
@@ -437,7 +459,7 @@ function InviteDrawer({
         body,
       }),
     onSuccess: () => {
-      toast.success('Invite updated')
+      toast.success('Coupon updated')
       onChanged()
     },
     onError: (error) =>
@@ -448,7 +470,7 @@ function InviteDrawer({
     <Sheet open={Boolean(invite)} onOpenChange={(next) => !next && onClose()}>
       <SheetContent className="w-full overflow-y-auto bg-card sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>{invite?.code ?? 'Invite'}</SheetTitle>
+          <SheetTitle>{invite?.code?.toUpperCase() ?? 'Coupon'}</SheetTitle>
         </SheetHeader>
         {invite ? (
           <InviteEditForm
@@ -487,16 +509,16 @@ function InviteEditForm({
 
   return (
     <div className="space-y-3 px-4 pb-6 text-sm">
-      <p className="font-mono text-xs break-all text-muted-foreground">{invite.enrollUrl}</p>
+      <p className="font-mono text-sm">{invite.code.toUpperCase()}</p>
       <Button
         size="sm"
         variant="outline"
         onClick={() => {
-          void navigator.clipboard.writeText(invite.enrollUrl)
-          toast.success('Invite link copied')
+          void navigator.clipboard.writeText(invite.code)
+          toast.success('Coupon code copied')
         }}
       >
-        Copy link
+        Copy code
       </Button>
       <p>Offer {invite.discountLabel}</p>
       <p>
@@ -509,7 +531,7 @@ function InviteEditForm({
           Person {invite.person.firstName} {invite.person.lastName} · {invite.person.email}
         </p>
       ) : (
-        <p>Open link</p>
+        <p>Open coupon</p>
       )}
       <Can action="update" subject="enter_first">
         <Field label="Label">
@@ -545,7 +567,7 @@ function InviteEditForm({
           </Button>
           {onRemove ? (
             <Button variant="outline" disabled={removing} onClick={onRemove}>
-              Remove invite
+              Remove coupon
             </Button>
           ) : null}
         </div>
