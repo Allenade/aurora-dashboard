@@ -90,11 +90,13 @@ function InvitesPage() {
     },
     {
       id: 'person',
-      header: 'Person',
+      header: 'Who',
       cell: ({ row }) =>
-        row.original.person
-          ? `${row.original.person.firstName} ${row.original.person.lastName}`
-          : 'Open coupon',
+        row.original.allowedEmail
+          ? row.original.allowedEmail
+          : row.original.person
+            ? `${row.original.person.firstName} ${row.original.person.lastName}`
+            : 'One use per email',
     },
     {
       id: 'offer',
@@ -161,7 +163,7 @@ function InvitesPage() {
       <PageHeader
         eyebrow="OFFERS"
         title="Coupons"
-        description="Create a code and set the percent off. Students type it on the website. 100% or Free charges ₦0 and skips Paystack."
+        description="Percent coupons can be shared. Each email can use a code once. Free or 100% coupons are locked to one email."
         actions={
           <Can action="create" subject="enter_first">
             <Button onClick={() => setCreating(true)}>New coupon</Button>
@@ -252,6 +254,7 @@ function CreateInviteSheet({
   const [maxRedemptions, setMaxRedemptions] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
   const [notes, setNotes] = useState('')
+  const [allowedEmail, setAllowedEmail] = useState('')
 
   const openCourses = useMemo(
     () => (courses.data ?? []).filter((course) => course.status !== 'archived'),
@@ -289,11 +292,17 @@ function CreateInviteSheet({
         return
       }
     }
+    const personal = offerType === 'free' || (offerType === 'discount_percent' && percent === 100)
+    if (personal && !allowedEmail.trim()) {
+      toast.error('Enter the student email for a free coupon')
+      return
+    }
     const body: CreateInviteBody = {
       code: code.trim(),
       label: label.trim() || undefined,
       personId: personId || undefined,
       lockToPerson: personId ? lockToPerson : false,
+      allowedEmail: allowedEmail.trim() || undefined,
       offerType,
       trackScope,
       trackSlugs: trackScope === 'selected' ? trackSlugs : undefined,
@@ -387,6 +396,27 @@ function CreateInviteSheet({
               />
             </Field>
           ) : null}
+          <Field
+            label={
+              offerType === 'free' ||
+              (offerType === 'discount_percent' && discountPercent === '100')
+                ? 'Student email'
+                : 'Lock to email (optional)'
+            }
+          >
+            <Input
+              type="email"
+              value={allowedEmail}
+              onChange={(e) => setAllowedEmail(e.target.value)}
+              placeholder="ada@example.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              {offerType === 'free' ||
+              (offerType === 'discount_percent' && discountPercent === '100')
+                ? 'Only this email can use the code. Required for free coupons.'
+                : 'Leave blank so many students can use it, once each. Fill it to lock the code to one person.'}
+            </p>
+          </Field>
           <Field label="Tracks covered">
             <select
               className={selectClass}
@@ -526,12 +556,14 @@ function InviteEditForm({
         {invite.maxRedemptions == null ? '' : ` / ${invite.maxRedemptions}`}
       </p>
       <p>Expires {invite.expiresAt ? formatWat(invite.expiresAt) : 'never'}</p>
-      {invite.person ? (
+      {invite.allowedEmail ? (
+        <p>Locked to {invite.allowedEmail}</p>
+      ) : invite.person ? (
         <p>
           Person {invite.person.firstName} {invite.person.lastName} · {invite.person.email}
         </p>
       ) : (
-        <p>Open coupon</p>
+        <p>One use per email</p>
       )}
       <Can action="update" subject="enter_first">
         <Field label="Label">
