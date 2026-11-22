@@ -16,6 +16,7 @@ export type Invite = {
   person: InvitePerson | null
   lockToPerson: boolean
   allowedEmail: string | null
+  allowedEmails: string[]
   lockToEmail: boolean
   offerType: InviteOfferType
   discountPercent: number | null
@@ -47,6 +48,7 @@ export type CreateInviteBody = {
   personId?: string
   lockToPerson?: boolean
   allowedEmail?: string
+  allowedEmails?: string[]
   offerType: InviteOfferType
   discountPercent?: number
   discountAmount?: number
