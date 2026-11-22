@@ -31,6 +31,21 @@ export const Route = createFileRoute('/_authenticated/compliance/invites/')({
 
 const selectClass = 'h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm'
 
+function inviteEmails(invite: Invite) {
+  if (invite.allowedEmails?.length) return invite.allowedEmails
+  return invite.allowedEmail ? [invite.allowedEmail] : []
+}
+
+function whoLabel(invite: Invite) {
+  const emails = inviteEmails(invite)
+  if (emails.length === 1) return emails[0]
+  if (emails.length > 1) return `${emails[0]} +${emails.length - 1}`
+  if (invite.person) {
+    return `${invite.person.firstName} ${invite.person.lastName}`
+  }
+  return 'One use per email'
+}
+
 function InvitesPage() {
   const ability = useAbility()
   const canUpdate = allows(ability, 'update', 'enter_first')
@@ -91,12 +106,7 @@ function InvitesPage() {
     {
       id: 'person',
       header: 'Who',
-      cell: ({ row }) =>
-        row.original.allowedEmail
-          ? row.original.allowedEmail
-          : row.original.person
-            ? `${row.original.person.firstName} ${row.original.person.lastName}`
-            : 'One use per email',
+      cell: ({ row }) => whoLabel(row.original),
     },
     {
       id: 'offer',
@@ -163,7 +173,7 @@ function InvitesPage() {
       <PageHeader
         eyebrow="OFFERS"
         title="Coupons"
-        description="Percent coupons can be shared. Each email can use a code once. Free or 100% coupons are locked to one email."
+        description="Leave emails blank to share a code, including free. Fill a list to lock the code to those people. Each email can use a code once."
         actions={
           <Can action="create" subject="enter_first">
             <Button onClick={() => setCreating(true)}>New coupon</Button>
@@ -292,11 +302,6 @@ function CreateInviteSheet({
         return
       }
     }
-    const personal = offerType === 'free' || (offerType === 'discount_percent' && percent === 100)
-    if (personal && !allowedEmail.trim()) {
-      toast.error('Enter the student email for a free coupon')
-      return
-    }
     const body: CreateInviteBody = {
       code: code.trim(),
       label: label.trim() || undefined,
@@ -396,25 +401,17 @@ function CreateInviteSheet({
               />
             </Field>
           ) : null}
-          <Field
-            label={
-              offerType === 'free' ||
-              (offerType === 'discount_percent' && discountPercent === '100')
-                ? 'Student email'
-                : 'Lock to email (optional)'
-            }
-          >
-            <Input
-              type="email"
+          <Field label="Student emails (optional)">
+            <Textarea
               value={allowedEmail}
               onChange={(e) => setAllowedEmail(e.target.value)}
-              placeholder="ada@example.com"
+              placeholder="ada@example.com, bola@example.com"
+              rows={4}
             />
             <p className="text-xs text-muted-foreground">
-              {offerType === 'free' ||
-              (offerType === 'discount_percent' && discountPercent === '100')
-                ? 'Only this email can use the code. Required for free coupons.'
-                : 'Leave blank so many students can use it, once each. Fill it to lock the code to one person.'}
+              Leave blank to share the code, including free coupons. Or enter
+              one or more emails, separated by commas or new lines. Only those
+              addresses can use the code, once each.
             </p>
           </Field>
           <Field label="Tracks covered">
@@ -556,8 +553,8 @@ function InviteEditForm({
         {invite.maxRedemptions == null ? '' : ` / ${invite.maxRedemptions}`}
       </p>
       <p>Expires {invite.expiresAt ? formatWat(invite.expiresAt) : 'never'}</p>
-      {invite.allowedEmail ? (
-        <p>Locked to {invite.allowedEmail}</p>
+      {inviteEmails(invite).length > 0 ? (
+        <p>Locked to {inviteEmails(invite).join(', ')}</p>
       ) : invite.person ? (
         <p>
           Person {invite.person.firstName} {invite.person.lastName} · {invite.person.email}
